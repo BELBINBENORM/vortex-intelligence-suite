@@ -9,10 +9,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class VortexIntelligence:
-    """
-    Vortex Intelligence Suite - High Performance Data Audit
-    Features: AUC-ROC Analysis, Structural Audit, and Inline Threshold Reporting.
-    """
     def __init__(self, X, y, task='classification', 
                  imbalance_threshold=3.0, 
                  skew_threshold=1.0, 
@@ -33,7 +29,6 @@ class VortexIntelligence:
     def _generate_text_summary(self):
         if self.report is None: return
         
-        # Calculation for summary
         outlier_cols = self.report[self.report['outlier_count'] > 0].shape[0]
         right_skew = self.report[self.report['skewness'] > self.skew_threshold].shape[0]
         left_skew = self.report[self.report['skewness'] < -self.skew_threshold].shape[0]
@@ -42,7 +37,6 @@ class VortexIntelligence:
 
         print("\n📝 --- VORTEX INTELLIGENCE SUMMARY ---")
         
-        # ⚖️ Balance Logic with Threshold Print
         if self.task == 'classification':
             counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
@@ -53,34 +47,23 @@ class VortexIntelligence:
             top_a = self.report.iloc[0]['auc_roc']
             print(f"🛡️ Predictive: Top Feature [{top_f}] has AUC-ROC of {top_a:.4f} (Goal: >0.65)")
 
-        # 🚩 Outliers with Threshold Print
         if outlier_cols > 0:
             print(f"🚩 Outliers: Detected in {outlier_cols} columns (Limit: {self.outlier_iqr_multiplier}xIQR)")
         else:
             print(f"✨ Outliers: No extreme outliers found (Limit: {self.outlier_iqr_multiplier}xIQR)")
 
-        # 📐 Skewness with Threshold Print
         if (right_skew + left_skew) > 0:
             print(f"📐 Skewness: {right_skew} Right, {left_skew} Left detected (Thr: ±{self.skew_threshold})")
         else:
             print(f"✨ Skewness: All features are symmetric (Thr: ±{self.skew_threshold})")
         
-        # 🏔️ Peaks with Threshold Print
         if high_kurt > 0:
             print(f"🏔️ Peaks: {high_kurt} columns with high Kurtosis (Thr: >{self.kurtosis_threshold})")
         else:
             print(f"✨ Peaks: Healthy tails (Thr: <{self.kurtosis_threshold})")
             
-        # ⚠️ Nulls
-        if missing_count > 0:
-            print(f"⚠️ Null Values: {missing_count} columns contain missing data")
-        else:
-            print("✨ Null Values: Dataset is complete (100% density)")
-        
-        # 📏 Range
-        total_min, total_max = self.report['min'].min(), self.report['max'].max()
-        print(f"📏 Data Range: {total_min:.2f} to {total_max:.2f}")
-        
+        print(f"✨ Null Values: {'Dataset is complete (100% density)' if missing_count == 0 else f'⚠️ Missing in {missing_count} cols'}")
+        print(f"📏 Data Range: {self.report['min'].min():.2f} to {self.report['max'].max():.2f}")
         print(f"🎯 Feature Verdict: {self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]} Strong Signals.")
         print("-" * 65)
 
@@ -89,18 +72,14 @@ class VortexIntelligence:
         if self.task == 'classification':
             counts = self.y.value_counts()
             perms = (self.y.value_counts(normalize=True) * 100)
-            target_df = pd.DataFrame({'Count': counts, 'Percentage': perms.map('{:.2f}%'.format)})
-            print(target_df)
+            print(pd.DataFrame({'Count': counts, 'Percentage': perms.map('{:.2f}%'.format)}))
 
         print("\n🧠 Scanning features for signal, noise, and AUC-ROC...")
 
-        # Initialize Results Table
         stats = pd.DataFrame(index=self.X.columns)
         stats['dtype'] = self.X.dtypes.astype(str)
         
-        # Per-column calculation to ensure 1:1 row-to-column mapping integrity
         for col in self.X.columns:
-            # 1. Base Stats
             if np.issubdtype(self.X[col].dtype, np.number):
                 stats.loc[col, 'mean'] = self.X[col].mean()
                 stats.loc[col, 'std'] = self.X[col].std()
@@ -109,44 +88,34 @@ class VortexIntelligence:
                 stats.loc[col, 'skewness'] = self.X[col].skew()
                 stats.loc[col, 'kurtosis'] = self.X[col].kurtosis()
                 
-                # Outlier Calculation
                 Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
                 IQR = Q3 - Q1
                 stats.loc[col, 'outlier_count'] = ((self.X[col] < (Q1 - self.outlier_iqr_multiplier * IQR)) | 
                                                    (self.X[col] > (Q3 + self.outlier_iqr_multiplier * IQR))).sum()
                 
-                # AUC-ROC Calculation
                 if self.task == 'classification' and self.y.nunique() == 2:
                     try:
                         score = roc_auc_score(self.y, self.X[col])
                         stats.loc[col, 'auc_roc'] = max(score, 1 - score)
-                    except:
-                        stats.loc[col, 'auc_roc'] = 0.5
-                else:
-                    stats.loc[col, 'auc_roc'] = 0.0
-
-                # Absolute Correlation
+                    except: stats.loc[col, 'auc_roc'] = 0.5
+                else: stats.loc[col, 'auc_roc'] = 0.0
                 stats.loc[col, 'abs_target_corr'] = abs(self.X[col].corr(self.y))
             else:
-                # Non-numeric fallbacks
                 stats.loc[col, ['mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 'outlier_count', 'abs_target_corr']] = 0.0
                 stats.loc[col, 'auc_roc'] = 0.5
 
             stats.loc[col, 'null_ratio'] = self.X[col].isnull().mean()
             stats.loc[col, 'unique_counts'] = self.X[col].nunique()
 
-        # Feature Importance (LightGBM)
         X_tmp = self.X.copy()
         for col in X_tmp.select_dtypes(exclude=[np.number]).columns:
             X_tmp[col] = X_tmp[col].astype('category')
 
         model = LGBMClassifier(n_estimators=100, importance_type='gain', verbosity=-1) if self.task == 'classification' else \
                 LGBMRegressor(n_estimators=100, importance_type='gain', verbosity=-1)
-            
         model.fit(X_tmp, self.y)
         stats['lgbm_gain'] = model.feature_importances_
 
-        # Verdict Logic
         def judge(row):
             if row['lgbm_gain'] > 100 or row['auc_roc'] > 0.65: return "✅ STRONG SIGNAL"
             if row['lgbm_gain'] == 0 and row['auc_roc'] <= 0.51: return "🗑️ GLOBAL NOISE"
@@ -154,28 +123,8 @@ class VortexIntelligence:
 
         stats['vortex_action'] = stats.apply(judge, axis=1)
         
-        # Enforce exact column order for clean printing
-        final_cols = ['dtype', 'mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 
-                      'outlier_count', 'auc_roc', 'abs_target_corr', 'null_ratio', 
-                      'unique_counts', 'lgbm_gain', 'vortex_action']
-        
-        self.report = stats[final_cols].sort_values(by='lgbm_gain', ascending=False)
+        self.report = stats[['dtype', 'mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 
+                            'outlier_count', 'auc_roc', 'abs_target_corr', 'null_ratio', 
+                            'unique_counts', 'lgbm_gain', 'vortex_action']].sort_values(by='lgbm_gain', ascending=False)
         self._generate_text_summary()
-        
         return self.report
-
-    def plot_vortex_eda(self):
-        """Standard EDA plotting with Gain/AUC insights."""
-        if self.report is None: return print("Error: Run get_report() first.")
-        cols = self.X.columns.tolist()
-        n_rows = (len(cols) + 2) // 3
-        plt.figure(figsize=(18, 5 * n_rows))
-        for i, col in enumerate(cols):
-            plt.subplot(n_rows, 3, i + 1)
-            if self.X[col].nunique() > 10 and np.issubdtype(self.X[col].dtype, np.number):
-                sns.histplot(self.X[col], kde=True, color='teal')
-            else:
-                sns.countplot(x=self.X[col], palette='viridis')
-            plt.title(f"{col}\nGain: {self.report.loc[col, 'lgbm_gain']:.1f} | AUC: {self.report.loc[col, 'auc_roc']:.3f}")
-        plt.tight_layout()
-        plt.show()
