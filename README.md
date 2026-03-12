@@ -47,13 +47,13 @@ vortex.plot_vortex_eda()
 
 The suite provides a rapid human-readable summary of your dataset's health:
 
-* [cite_start]**⚖️ Balance**: Class ratio and imbalance warnings for classification or skew/kurtosis for regression. [cite: 5, 6]
-* [cite_start]**📂 Structure**: Counts of numerical and categorical columns found in the dataset. [cite: 3, 6]
-* [cite_start]**🚩 Outliers**: Count of columns containing statistical outliers found in numerical columns. [cite: 3, 6]
-* [cite_start]**📐 Shape**: Quantification of right/left skewness and heavy-tailed (Kurtosis) distributions. [cite: 3, 7]
-* [cite_start]**✨ Null Values**: Detection and reporting of missing values across the dataset. [cite: 4, 7, 8]
-* [cite_start]**📏 Data Range**: The minimum and maximum range of all numerical data. [cite: 4, 8]
-* [cite_start]**🎯 Verdict**: Count of high-value features identified as "Strong Signals". [cite: 8, 16]
+* **⚖️ Balance**: Class ratio and imbalance warnings for classification or skew/kurtosis for regression.
+* **📂 Structure**: Counts of numerical and categorical columns found in the dataset.
+* **🚩 Outliers**: Count of columns containing statistical outliers found in numerical columns.
+* **📐 Shape**: Quantification of right/left skewness and heavy-tailed (Kurtosis) distributions.
+* **✨ Null Values**: Detection and reporting of missing values across the dataset.
+* **📏 Data Range**: The minimum and maximum range of all numerical data.
+* **🎯 Verdict**: Count of high-value features identified as "Strong Signals".
 
 ---
 *Developed by **BELBIN BENO R M***
