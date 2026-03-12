@@ -9,70 +9,75 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class VortexIntelligence:
-    def __init__(self, X, y, task='classification'):
-        self.X = X
-        self.y = y
+    def __init__(self, X, y, task='classification', 
+                 imbalance_threshold=3.0, 
+                 skew_threshold=0.5, 
+                 kurtosis_threshold=3.0, 
+                 outlier_iqr_multiplier=1.5):
+        
+        self.X = X.copy().reset_index(drop=True)
+        self.y = pd.Series(y).reset_index(drop=True)
         self.task = task.lower()
         self.report = None
         
-        # Display settings for professional output
-        pd.set_option('display.max_columns', None)
-        pd.set_option('display.max_rows', 100)
-        pd.set_option('display.width', 1000)
+        # --- Configurable Thresholds (No more hard-coding) ---
+        self.imbalance_threshold = imbalance_threshold
+        self.skew_threshold = skew_threshold
+        self.kurtosis_threshold = kurtosis_threshold
+        self.outlier_iqr_multiplier = outlier_iqr_multiplier
 
     def _generate_text_summary(self):
-        """Generates the descriptive text intelligence summary."""
-        if self.report is None:
-            print("💡 To view the dataframe report, use .report. Not calculated yet, use get_report() to calculate.")
-            return
+        if self.report is None: return
 
-        # Feature Counts
-        num_cols = self.X.select_dtypes(include=[np.number]).shape[1]
-        cat_cols = self.X.select_dtypes(exclude=[np.number]).shape[1]
-
-        # Outlier & Skew Logic (Numerical only)
-        num_stats = self.report[self.report['dtype'].str.contains('int|float')]
+        # 1. Gather stats using dynamic thresholds
+        num_stats = self.report[self.report['dtype'].str.contains('int|float|complex')]
         outlier_cols = num_stats[num_stats['outlier_count'] > 0].shape[0]
-        right_skew = num_stats[num_stats['skewness'] > 0.5].shape[0]
-        left_skew = num_stats[num_stats['skewness'] < -0.5].shape[0]
-        high_kurt = num_stats[num_stats['kurtosis'] > 3].shape[0]
-        low_kurt = num_stats[num_stats['kurtosis'] < -1].shape[0]
-        
+        right_skew = num_stats[num_stats['skewness'] > self.skew_threshold].shape[0]
+        left_skew = num_stats[num_stats['skewness'] < -self.skew_threshold].shape[0]
+        high_kurt = num_stats[num_stats['kurtosis'] > self.kurtosis_threshold].shape[0]
+        low_kurt = num_stats[num_stats['kurtosis'] < -1.0].shape[0]
         null_cols = self.report[self.report['null_ratio'] > 0].shape[0]
-        global_min = self.X.select_dtypes(include=[np.number]).min().min()
-        global_max = self.X.select_dtypes(include=[np.number]).max().max()
+        
+        num_data = self.X.select_dtypes(include=[np.number])
 
         print("\n📝 --- VORTEX INTELLIGENCE SUMMARY ---")
         
-        # Target Summary Integration
-        y_series = pd.Series(self.y)
+        # --- Target Balance ---
         if self.task == 'classification':
-            counts = y_series.value_counts()
+            counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
-            status = "High Imbalance" if ratio > 3 else "Balanced"
-            print(f"⚖️ Balance: {status} detected (Ratio {ratio:.2f}:1).")
-        else:
-            print(f"📈 Target Profile: Skew {y_series.skew():.2f} | Kurtosis {y_series.kurtosis():.2f}")
-
-        print(f"📂 Structure: {num_cols} Numerical columns and {cat_cols} Categorical columns found.")
+            if ratio > self.imbalance_threshold:
+                print(f"⚖️ Balance: High Imbalance detected (Ratio {ratio:.2f}:1).")
+            else:
+                print(f"⚖️ Balance: Classes are well-balanced (Ratio {ratio:.2f}:1).")
         
+        # --- Outliers ---
         if outlier_cols > 0:
-            print(f"🚩 Outliers: Outliers found in {outlier_cols} columns.")
+            print(f"🚩 Outliers: Detected in {outlier_cols} columns (Threshold: {self.outlier_iqr_multiplier}xIQR).")
         else:
-            print("✨ Outliers: No outliers found in numerical columns.")
-            
-        print(f"📐 Skewness: {right_skew} columns show Right Skewness, {left_skew} columns show Left Skewness.")
-        print(f"🏔️ Peaks: {high_kurt} columns show High Kurtosis (Heavy Tails), {low_kurt} columns show Low Kurtosis.")
-        
+            print("✨ Outliers: No outliers detected. Distribution is stable.")
+
+        # --- Skewness ---
+        if (right_skew + left_skew) > 0:
+            print(f"📐 Skewness: {right_skew} Right, {left_skew} Left detected (Threshold: ±{self.skew_threshold}).")
+        else:
+            print("✨ Skewness: All features are mathematically symmetrical.")
+
+        # --- Peaks (Kurtosis) ---
+        if high_kurt > 0:
+            print(f"🏔️ Peaks: High Kurtosis detected in {high_kurt} columns (Threshold: >{self.kurtosis_threshold}).")
+        else:
+            print("✨ Peaks: No extreme Kurtosis found. Tails are healthy.")
+
+        # --- Null Values ---
         if null_cols > 0:
             print(f"☁️ Null Values: Detected in {null_cols} columns.")
         else:
-            print("✨ Null Values: No null values found in the dataset.")
+            print("✨ Null Values: Dataset is complete (No missing data).")
             
-        print(f"📏 Data Range: Numerical data ranges from {global_min} to {global_max}.")
-        print(f"🎯 Feature Verdict: {self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]} features identified as Strong Signals.")
+        print(f"📏 Data Range: {num_data.min().min():.2f} to {num_data.max().max():.2f}")
+        print(f"🎯 Feature Verdict: {self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]} Strong Signals.")
         print("-" * 40)
-        print("💡 To view the full dataframe report, use .report")
 
     def _analyze_target(self):
         print(f"\n🎯 --- TARGET ANALYSIS ({self.task.upper()}) ---")
