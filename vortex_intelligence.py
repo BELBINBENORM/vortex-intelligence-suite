@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 class VortexIntelligence:
     """
     Vortex Intelligence Suite - High Performance Data Audit
-    Optimized for Churn Analysis and Predictive Feature Profiling.
+    Corrected: Column alignment for AUC and Correlation.
     """
     def __init__(self, X, y, task='classification', 
                  imbalance_threshold=3.0, 
@@ -24,7 +24,6 @@ class VortexIntelligence:
         self.task = task.lower()
         self.report = None
         
-        # Threshold Configurations
         self.imbalance_threshold = imbalance_threshold
         self.skew_threshold = skew_threshold
         self.kurtosis_threshold = kurtosis_threshold
@@ -33,7 +32,6 @@ class VortexIntelligence:
     def _generate_text_summary(self):
         if self.report is None: return
         
-        # Pre-calculating summary metrics
         outlier_cols = self.report[self.report['outlier_count'] > 0].shape[0]
         right_skew = self.report[self.report['skewness'] > self.skew_threshold].shape[0]
         left_skew = self.report[self.report['skewness'] < -self.skew_threshold].shape[0]
@@ -42,7 +40,6 @@ class VortexIntelligence:
 
         print("\n📝 --- VORTEX INTELLIGENCE SUMMARY ---")
         
-        # ⚖️ Balance Logic
         if self.task == 'classification':
             counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
@@ -53,31 +50,26 @@ class VortexIntelligence:
             top_a = self.report.iloc[0]['auc_roc']
             print(f"🛡️ Predictive: Top Feature [{top_f}] has AUC-ROC of {top_a:.4f}")
 
-        # 🚩 Outliers
         if outlier_cols > 0:
             print(f"🚩 Outliers: Detected in {outlier_cols} columns ({self.outlier_iqr_multiplier}xIQR).")
         else:
-            print("✨ Outliers: No extreme outliers detected. Distribution is stable.")
+            print("✨ Outliers: No extreme outliers found.")
 
-        # 📐 Skewness (Corrected logic with Else part)
         if (right_skew + left_skew) > 0:
             print(f"📐 Skewness: {right_skew} Right, {left_skew} Left detected (±{self.skew_threshold}).")
         else:
             print(f"✨ Skewness: All features are symmetric (within ±{self.skew_threshold}).")
         
-        # 🏔️ Peaks
         if high_kurt > 0:
             print(f"🏔️ Peaks: High Kurtosis detected in {high_kurt} columns (>{self.kurtosis_threshold}).")
         else:
-            print("✨ Peaks: No extreme Kurtosis found. Tails are healthy.")
+            print("✨ Peaks: No extreme Kurtosis found. Healthy tails.")
             
-        # ✨ Null Values
         if missing_count > 0:
             print(f"⚠️ Null Values: {missing_count} columns contain missing data.")
         else:
             print("✨ Null Values: Dataset is complete (No missing data).")
         
-        # 📏 Range
         total_min, total_max = self.report['min'].min(), self.report['max'].max()
         print(f"📏 Data Range: {total_min:.2f} to {total_max:.2f}")
         
@@ -93,11 +85,10 @@ class VortexIntelligence:
 
         print("\n🧠 Scanning features for signal, noise, and AUC-ROC...")
 
-        # Initialize Results Table
         stats = pd.DataFrame(index=self.X.columns)
         stats['dtype'] = self.X.dtypes.astype(str)
         
-        # Base Numeric Stats
+        # Numeric base stats
         stats['mean'] = self.X.mean(numeric_only=True)
         stats['std'] = self.X.std(numeric_only=True)
         stats['min'] = self.X.min(numeric_only=True)
@@ -107,19 +98,16 @@ class VortexIntelligence:
         stats['null_ratio'] = self.X.isnull().mean()
         stats['unique_counts'] = self.X.nunique()
 
-        # Detailed Loop for Outliers, Correlation, and AUC
+        # FIXED LOOP: Correct column alignment
         for col in self.X.columns:
             if np.issubdtype(self.X[col].dtype, np.number):
-                # 1. Outlier Calculation
+                # 1. Outlier Count
                 Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
                 IQR = Q3 - Q1
                 stats.loc[col, 'outlier_count'] = ((self.X[col] < (Q1 - self.outlier_iqr_multiplier * IQR)) | 
                                                    (self.X[col] > (Q3 + self.outlier_iqr_multiplier * IQR))).sum()
                 
-                # 2. Correlation
-                stats.loc[col, 'abs_target_corr'] = abs(self.X[col].corr(self.y))
-                
-                # 3. AUC-ROC
+                # 2. AUC-ROC (Area Under the Curve)
                 if self.task == 'classification' and self.y.nunique() == 2:
                     try:
                         score = roc_auc_score(self.y, self.X[col])
@@ -128,12 +116,15 @@ class VortexIntelligence:
                         stats.loc[col, 'auc_roc'] = 0.5
                 else:
                     stats.loc[col, 'auc_roc'] = 0.0
-            else:
-                # Fallback for non-numeric columns
-                stats.loc[col, ['outlier_count', 'abs_target_corr']] = 0.0
-                stats.loc[col, 'auc_roc'] = 0.5
 
-        # LightGBM Signal Detection
+                # 3. Absolute Correlation
+                stats.loc[col, 'abs_target_corr'] = abs(self.X[col].corr(self.y))
+            else:
+                stats.loc[col, 'outlier_count'] = 0
+                stats.loc[col, 'auc_roc'] = 0.5
+                stats.loc[col, 'abs_target_corr'] = 0.0
+
+        # LGBM Gain
         X_tmp = self.X.copy()
         for col in X_tmp.select_dtypes(exclude=[np.number]).columns:
             X_tmp[col] = X_tmp[col].astype('category')
@@ -144,17 +135,15 @@ class VortexIntelligence:
         model.fit(X_tmp, self.y)
         stats['lgbm_gain'] = model.feature_importances_
 
-        # Verdict Engine
+        # Verdict
         def judge(row):
-            if row['lgbm_gain'] > 100 or row['auc_roc'] > 0.65:
-                return "✅ STRONG SIGNAL"
-            if row['lgbm_gain'] == 0 and row['auc_roc'] <= 0.51:
-                return "🗑️ GLOBAL NOISE"
+            if row['lgbm_gain'] > 100 or row['auc_roc'] > 0.65: return "✅ STRONG SIGNAL"
+            if row['lgbm_gain'] == 0 and row['auc_roc'] <= 0.51: return "🗑️ GLOBAL NOISE"
             return "⚠️ WEAK SIGNAL"
 
         stats['vortex_action'] = stats.apply(judge, axis=1)
         
-        # Column Ordering Strategy
+        # Explicit column order to prevent shifting
         final_cols = ['dtype', 'mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 
                       'outlier_count', 'auc_roc', 'abs_target_corr', 'null_ratio', 
                       'unique_counts', 'lgbm_gain', 'vortex_action']
@@ -165,8 +154,7 @@ class VortexIntelligence:
         return self.report
 
     def plot_vortex_eda(self):
-        """Displays feature distributions with performance overlays."""
-        if self.report is None: return print("Run get_report() first.")
+        if self.report is None: return
         cols = self.X.columns.tolist()
         n_rows = (len(cols) + 2) // 3
         plt.figure(figsize=(18, 5 * n_rows))
