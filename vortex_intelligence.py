@@ -18,8 +18,10 @@ class VortexIntelligence:
     RESET = "\033[0m"
 
     def __init__(self, X, y, task='classification', 
-                 imbalance_threshold=3.0, skew_threshold=1.0, 
-                 kurtosis_threshold=15.0, outlier_iqr_multiplier=3.0):
+             imbalance_threshold=3,     # Warning only if serious
+             skew_threshold=0.75,         # Catch skewness slightly earlier (0.75 is very professional)
+             kurtosis_threshold=10.0,    # 10 is the "danger zone" for peaks
+             outlier_iqr_multiplier=3.0): # Only report "Extreme" outliers
         self.X = X.copy().reset_index(drop=True)
         self.y = pd.Series(y).reset_index(drop=True)
         self.task = task.lower()
