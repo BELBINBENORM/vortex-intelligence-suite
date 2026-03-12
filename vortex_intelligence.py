@@ -43,23 +43,25 @@ class VortexIntelligence:
     def _generate_text_summary(self):
         if self.report is None: return
         
-        outlier_cols = self.report[self.report['outlier_count'] > 0].shape[0]
-        skew_count = self.report[(self.report['skewness'] > self.skew_threshold) | 
-                                 (self.report['skewness'] < -self.skew_threshold)].shape[0]
-        high_kurt = self.report[self.report['kurtosis'] > self.kurtosis_threshold].shape[0]
+        # Fixed: Only count skew/outliers for non-nominal columns to avoid confusion
+        numeric_report = self.report[self.report['level'].isin(['Interval', 'Ratio'])]
+        
+        outlier_cols = numeric_report[numeric_report['outlier_count'] > 0].shape[0]
+        skew_count = numeric_report[(numeric_report['skewness'] != "Nominal") & 
+                                    ((numeric_report['skewness'] > self.skew_threshold) | 
+                                     (numeric_report['skewness'] < -self.skew_threshold))].shape[0]
+        high_kurt = numeric_report[(numeric_report['kurtosis'] != "Nominal") & 
+                                   (numeric_report['kurtosis'] > self.kurtosis_threshold)].shape[0]
+        
         missing_count = self.report[self.report['null_ratio'] > 0].shape[0]
         levels = self.report['level'].value_counts().to_dict()
         strong_signals = self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]
 
-        # Helper to wrap text in BOLD
         def b(text): return f"{self.BOLD}{text}{self.RESET}"
 
         print(f"\n   {b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
-        
-        # Consistent padding for alignment
         pad = 25
 
-        # 1. Balance
         if self.task == 'classification':
             counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
@@ -67,38 +69,19 @@ class VortexIntelligence:
             bal_color = self.RED if ratio > self.imbalance_threshold else self.GREEN
             print(f"⚖️ {b('Balance'):<{pad}} : {bal_color}{b(bal_status)} {b(f'(Ratio {ratio:.2f}:1 | Thr: {self.imbalance_threshold}:1)')}")
             
-            # 2. Predictive
             top_f = self.report.iloc[0]['feature_name']
             auc_val = self.report.iloc[0]['auc_roc']
             auc_color = self.GREEN if auc_val > 0.65 else self.YELLOW
             print(f"🛡️ {b('Predictive'):<{pad}} : {auc_color}{b(f'Top Feature [{top_f}] has AUC-ROC of {auc_val:.4f}')} {b('(Goal: >0.65)')}")
 
-        # 3. Composition
         comp_text = f"{levels.get('Ratio', 0)} Ratio, {levels.get('Interval', 0)} Interval, {levels.get('Ordinal', 0)} Ordinal, {levels.get('Nominal', 0)} Nominal"
         print(f"📊 {b('Composition'):<{pad}} : {self.CYAN}{b(comp_text)}")
         
-        # 4. Outliers
-        out_color = self.RED if outlier_cols > 0 else self.GREEN
-        out_msg = f"Detected in {outlier_cols} columns" if outlier_cols > 0 else "It's fine. No extreme outliers"
-        print(f"🚩 {b('Outliers'):<{pad}} : {out_color}{b(out_msg)} {b(f'(Limit: {self.outlier_iqr_multiplier}xIQR)')}")
-        
-        # 5. Skewness
-        skew_color = self.RED if skew_count > 0 else self.GREEN
-        skew_msg = f"{skew_count} columns skewed" if skew_count > 0 else "It's fine. Symmetric"
-        print(f"📐 {b('Skewness'):<{pad}} : {skew_color}{b(skew_msg)} {b(f'(Thr: ±{self.skew_threshold})')}")
-        
-        # 6. Peaks
-        kurt_color = self.RED if high_kurt > 0 else self.GREEN
-        kurt_msg = f"{high_kurt} columns with High Kurtosis" if high_kurt > 0 else "It's fine. Healthy tails"
-        print(f"🏔️ {b('Peaks'):<{pad}} : {kurt_color}{b(kurt_msg)} {b(f'(Thr: <{self.kurtosis_threshold})')}")
-        
-        # 7. Null Values
-        null_color = self.RED if missing_count > 0 else self.GREEN
-        null_msg = 'Missing data detected' if missing_count > 0 else 'It\'s fine. Dataset is complete (100% density)'
-        print(f"✨ {b('Null Values'):<{pad}} : {null_color}{b(null_msg)}")
-        
-        # 8. Verdict
-        print(f"🎯 {b('Feature Verdict'):<{pad}} : {self.CYAN}{b(f'{strong_signals} Strong Signals.')}\n")
+        print(f"🚩 {b('Outliers'):<{pad}} : {(self.RED if outlier_cols > 0 else self.GREEN)}{b(f'Detected in {outlier_cols} columns' if outlier_cols > 0 else 'It\'s fine. No extreme outliers')} {b(f'(Limit: {self.outlier_iqr_multiplier}xIQR)')}")
+        print(f"📐 {b('Skewness'):<{pad}} : {(self.RED if skew_count > 0 else self.GREEN)}{b(f'{skew_count} columns skewed' if skew_count > 0 else 'It\'s fine. Symmetric')} {b(f'(Thr: ±{self.skew_threshold})')}")
+        print(f"🏔️ {b('Peaks'):<{pad}} : {(self.RED if high_kurt > 0 else self.GREEN)}{b(f'{high_kurt} columns with High Kurtosis' if high_kurt > 0 else 'It\'s fine. Healthy tails')} {b(f'(Thr: <{self.kurtosis_threshold})')}")
+        print(f"✨ {b('Null Values'):<{pad}} : {(self.RED if missing_count > 0 else self.GREEN)}{b('Missing data detected' if missing_count > 0 else 'It\'s fine. Dataset is complete (100% density)')}")
+        print(f"🎯 {b('Verdict'):<{pad}} : {self.CYAN}{b(f'{strong_signals} Strong Signals.')}\n")
 
     def get_report(self):
         X_tmp = self.X.copy()
@@ -112,46 +95,55 @@ class VortexIntelligence:
 
         data_list = []
         for col in self.X.columns:
-            is_num = np.issubdtype(self.X[col].dtype, np.number)
-            auc, corr, out_count = 0.5, 0.0, 0
-            unique_c = int(self.X[col].nunique())
             level = self._determine_data_level(col)
+            is_num = np.issubdtype(self.X[col].dtype, np.number)
+            dtype_name = str(self.X[col].dtype)
             
-            if is_num:
-                if unique_c > 10:
-                    Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
-                    IQR = Q3 - Q1
-                    out_count = int(((self.X[col] < (Q1 - self.outlier_iqr_multiplier * IQR)) | 
-                                     (self.X[col] > (Q3 + self.outlier_iqr_multiplier * IQR))).sum())
-                
-                if self.task == 'classification':
-                    try:
-                        score = roc_auc_score(self.y, self.X[col])
-                        auc = max(score, 1 - score)
-                    except: auc = 0.5
-                corr = abs(self.X[col].corr(self.y))
+            if level in ["Interval", "Ratio"]:
+                skew = self.X[col].skew()
+                kurt = self.X[col].kurtosis()
+                Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
+                out_count = ((self.X[col] < (Q1 - self.outlier_iqr_multiplier * (Q3-Q1))) | 
+                             (self.X[col] > (Q3 + self.outlier_iqr_multiplier * (Q3-Q1)))).sum()
+            else:
+                skew = "Nominal"
+                kurt = "Nominal"
+                out_count = 0
+
+            auc = 0.5
+            if self.task == 'classification':
+                try:
+                    score = roc_auc_score(self.y, pd.to_numeric(self.X[col], errors='coerce').fillna(0))
+                    auc = max(score, 1 - score)
+                except: auc = 0.5
+            
+            corr = abs(self.X[col].corr(self.y)) if is_num else 0.0
 
             data_list.append({
-                'feature_name': col, 'level': level,
+                'feature_name': col, 
+                'level': level,
+                'dtype': dtype_name,  # NEW COLUMN
                 'mean': self.X[col].mean() if is_num else 0,
                 'std': self.X[col].std() if is_num else 0,
                 'min': self.X[col].min() if is_num else 0,
                 'max': self.X[col].max() if is_num else 0,
-                'skewness': self.X[col].skew() if is_num else 0,
-                'kurtosis': self.X[col].kurtosis() if is_num else 0,
-                'outlier_count': int(out_count), 'auc_roc': auc,
-                'abs_target_corr': corr, 'null_ratio': self.X[col].isnull().mean(),
-                'unique_counts': unique_c, 'lgbm_gain': int(gains.get(col, 0)),
+                'skewness': skew, 
+                'kurtosis': kurt,
+                'outlier_count': int(out_count), 
+                'auc_roc': auc,
+                'abs_target_corr': corr, 
+                'null_ratio': self.X[col].isnull().mean(),
+                'unique_counts': int(self.X[col].nunique()), 
+                'lgbm_gain': int(gains.get(col, 0)),
                 'vortex_action': "✅ STRONG SIGNAL" if (gains.get(col, 0) > 100 or auc > 0.65) else "⚠️ WEAK SIGNAL"
             })
 
         self.report = pd.DataFrame(data_list).sort_values('lgbm_gain', ascending=False).reset_index(drop=True)
         pd.set_option('display.max_columns', None)
         pd.set_option('display.width', 1000)
-        pd.set_option('display.max_rows', None)
-        
         self._generate_text_summary()
         return self.report
+
         
     def get_visual(self, figsize=(18, 5)):
         """Generates a 3-column diagnostic row for every feature with smart detection for encoded categories."""
