@@ -166,6 +166,8 @@ class VortexIntelligence:
             # Check if numeric AND has enough variety to be truly continuous
             unique_count = self.X[feature].nunique()
             is_num = np.issubdtype(self.X[feature].dtype, np.number)
+            
+            # CRITICAL FIX: Categorical/Encoded if unique values <= 10
             is_continuous = is_num and unique_count > 10
             
             fig, axes = plt.subplots(1, 3, figsize=figsize)
@@ -176,7 +178,6 @@ class VortexIntelligence:
                 sns.histplot(self.X[feature], kde=True, ax=axes[0], color='skyblue')
                 axes[0].set_title(f"Distribution (Skew: {self.X[feature].skew():.2f})")
             else:
-                # Better for Label Encoded / Categorical
                 sns.countplot(data=self.X, x=feature, ax=axes[0], palette="viridis")
                 axes[0].set_title(f"Frequency (Categorical/Encoded)")
 
@@ -185,7 +186,6 @@ class VortexIntelligence:
                 sns.boxplot(x=self.X[feature], ax=axes[1], color='salmon', fliersize=5)
                 axes[1].set_title("Outlier Detection (Boxplot)")
             else:
-                # Show the composition of labels
                 self.X[feature].value_counts().plot(kind='pie', ax=axes[1], autopct='%1.1f%%', 
                                                    colors=sns.color_palette("pastel"), startangle=90)
                 axes[1].set_ylabel('')
@@ -193,14 +193,15 @@ class VortexIntelligence:
 
             # --- 3. TARGET RELATIONSHIP ---
             if self.task == 'classification':
-                if is_num:
+                # FIX: If it's encoded or categorical (NOT continuous), show Heatmap
+                if not is_continuous:
+                    ct = pd.crosstab(self.X[feature], self.y, normalize='index')
+                    sns.heatmap(ct, annot=True, cmap="YlGnBu", ax=axes[2], cbar=False, fmt='.2f')
+                    axes[2].set_title("Target Correlation Heatmap")
+                else:
+                    # Only show Violin for truly continuous numbers (like Tenure)
                     sns.violinplot(x=self.y, y=self.X[feature], ax=axes[2], palette="muted", split=True)
                     axes[2].set_title("Relationship with Target")
-                else:
-                    # Heatmap for pure categorical
-                    ct = pd.crosstab(self.X[feature], self.y, normalize='index')
-                    sns.heatmap(ct, annot=True, cmap="YlGnBu", ax=axes[2], cbar=False)
-                    axes[2].set_title("Target Correlation Heatmap")
             else:
                 # Regression Trend
                 if is_continuous:
