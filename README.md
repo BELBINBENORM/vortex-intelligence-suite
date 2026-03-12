@@ -1,14 +1,13 @@
-# 🌪️ Vortex Intelligence Suite
+# 🌀 Vortex Intelligence Suite
+**Automated Feature Engineering & Diagnostic Intelligence for Data Science**
 
-**Vortex Intelligence Suite** is a high-speed, automated feature profiling and diagnostic tool designed for machine learning practitioners. [cite_start]It provides a comprehensive "intelligence report" by combining deep statistical metrics with Gradient Boosting feature importance to evaluate feature signals and noise.
----
-## 🚀 Features
+Vortex Intelligence is a lightweight Python engine designed to bridge the gap between raw data and model-ready features. It performs deep statistical analysis, detects data levels (Nominal to Ratio), and provides visual diagnostics in one line of code.
 
-* **Target Diagnostics**: Automatically analyzes class imbalance for classification tasks and distribution properties like skew and kurtosis for regression.
-* **Statistical Profiling**: Calculates skewness, kurtosis, and outlier counts using the Interquartile Range (IQR) method.
-* **Signal Detection**: Categorizes features into **Strong Signal**, **Weak Signal**, or **Global Noise** based on LightGBM "Gain" importance and target correlation.
-* **Hybrid Data Support**: Handles both numerical and categorical columns within a single report, including data type identification.
-* **Automated EDA**: Generates a grid-based visualization suite (3 plots per row) that automatically adapts between histograms and count plots based on data cardinality.
+## 🚀 Key Features
+* **Smart Data Leveling**: Automatically classifies features into Nominal, Ordinal, Interval, or Ratio.
+* **Predictive Scoring**: Uses LightGBM Gain and AUC-ROC to identify "Strong Signals."
+* **Bold Diagnostics**: High-visibility terminal summaries with perfectly aligned statistical reports.
+* **Triple-Threat Visuals**: Generates 3-row diagnostic grids (Distribution, Outliers/Composition, and Target Relationship) automatically.
 ---
 ## 🛠️ Installation
 
@@ -33,27 +32,21 @@ Once installed, you can import and run the suite anywhere in your notebook:
 ```python
 from vortex_intelligence import VortexIntelligence
 
-# Initialize the suite (task can be 'classification' or 'regression')
-vortex = VortexIntelligence(X_train, y_train, task='classification')
+# Initialize with your X and y
+vortex = VortexIntelligence(X, y, task='classification')
 
-# Generate the intelligence report and textual summary
+# Get the detailed report
 report = vortex.get_report()
 
-# Visualize the features and target distribution
-vortex.plot_vortex_eda()
+# Generate the 3-row visual diagnostics
+vortex.get_visual()
 ```
 ---
 ## 📊 Intelligence Summary Output
 
 The suite provides a rapid human-readable summary of your dataset's health:
 
-* **⚖️ Balance**: Class ratio and imbalance warnings for classification or skew/kurtosis for regression.
-* **📂 Structure**: Counts of numerical and categorical columns found in the dataset.
-* **🚩 Outliers**: Count of columns containing statistical outliers found in numerical columns.
-* **📐 Shape**: Quantification of right/left skewness and heavy-tailed (Kurtosis) distributions.
-* **✨ Null Values**: Detection and reporting of missing values across the dataset.
-* **📏 Data Range**: The minimum and maximum range of all numerical data.
-* **🎯 Verdict**: Count of high-value features identified as "Strong Signals".
+<img width="656" height="203" alt="image" src="https://github.com/user-attachments/assets/adcfaa3f-958b-4de0-8cba-6e01e64f3dc5" />
 
 ---
 *Developed by **BELBIN BENO R M***
