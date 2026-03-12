@@ -64,7 +64,7 @@ class VortexIntelligence:
         print(f"\n   {b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
         pad = 25
 
-        # 1. Balance
+        # Balance
         if self.task == 'classification':
             counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
@@ -72,32 +72,32 @@ class VortexIntelligence:
             bal_color = self.RED if ratio > self.imbalance_threshold else self.GREEN
             print(f"⚖️ {b('Balance'):<{pad}} : {bal_color}{b(bal_status)} {b(f'(Ratio {ratio:.2f}:1 | Thr: {self.imbalance_threshold}:1)')}")
             
-            # 2. Predictive
+            # Predictive
             top_f = self.report.iloc[0]['feature_name']
             auc_val = self.report.iloc[0]['auc_roc']
             auc_color = self.GREEN if auc_val > 0.65 else self.YELLOW
             print(f"🛡️ {b('Predictive'):<{pad}} : {auc_color}{b(f'Top Feature [{top_f}] has AUC-ROC of {auc_val:.4f}')} {b('(Goal: >0.65)')}")
 
-        # 3. Composition
+        # Outliers
+        print(f"🚩 {b('Outliers'):<{pad}} : {(self.RED if outlier_cols > 0 else self.GREEN)}{b(f'Detected in {outlier_cols} columns' if outlier_cols > 0 else 'It\'s fine. No extreme outliers')} {b(f'(Limit: {self.outlier_iqr_multiplier}xIQR)')}")
+        
+        # Skewness
+        print(f"📐 {b('Skewness'):<{pad}} : {(self.RED if skew_count > 0 else self.GREEN)}{b(f'{skew_count} columns skewed' if skew_count > 0 else 'It\'s fine. Symmetric')} {b(f'(Thr: ±{self.skew_threshold})')}")
+        
+        # Peaks
+        print(f"🏔️ {b('Peaks'):<{pad}} : {(self.RED if high_kurt > 0 else self.GREEN)}{b(f'{high_kurt} columns with High Kurtosis' if high_kurt > 0 else 'It\'s fine. Healthy tails')} {b(f'(Thr: <{self.kurtosis_threshold})')}")
+        
+        # Nulls
+        print(f"✨ {b('Null Values'):<{pad}} : {(self.RED if missing_count > 0 else self.GREEN)}{b('Missing data detected' if missing_count > 0 else 'It\'s fine. Dataset is complete (100% density)')}")
+        
+        # Composition
         comp_text = f"{levels.get('Ratio', 0)} Ratio, {levels.get('Interval', 0)} Interval, {levels.get('Ordinal', 0)} Ordinal, {levels.get('Nominal', 0)} Nominal"
         print(f"📊 {b('Composition'):<{pad}} : {self.CYAN}{b(comp_text)}")
         
-        # 4. Range (NEW: Useful for verifying scaling/clipping)
+        # Range (NEW: Useful for verifying scaling/clipping)
         print(f"🌐 {b('Data Range'):<{pad}} : {self.CYAN}{b(f'Min: {global_min:.2f} | Max: {global_max:.2f}')}")
 
-        # 5. Outliers
-        print(f"🚩 {b('Outliers'):<{pad}} : {(self.RED if outlier_cols > 0 else self.GREEN)}{b(f'Detected in {outlier_cols} columns' if outlier_cols > 0 else 'It\'s fine. No extreme outliers')} {b(f'(Limit: {self.outlier_iqr_multiplier}xIQR)')}")
-        
-        # 6. Skewness
-        print(f"📐 {b('Skewness'):<{pad}} : {(self.RED if skew_count > 0 else self.GREEN)}{b(f'{skew_count} columns skewed' if skew_count > 0 else 'It\'s fine. Symmetric')} {b(f'(Thr: ±{self.skew_threshold})')}")
-        
-        # 7. Peaks
-        print(f"🏔️ {b('Peaks'):<{pad}} : {(self.RED if high_kurt > 0 else self.GREEN)}{b(f'{high_kurt} columns with High Kurtosis' if high_kurt > 0 else 'It\'s fine. Healthy tails')} {b(f'(Thr: <{self.kurtosis_threshold})')}")
-        
-        # 8. Nulls
-        print(f"✨ {b('Null Values'):<{pad}} : {(self.RED if missing_count > 0 else self.GREEN)}{b('Missing data detected' if missing_count > 0 else 'It\'s fine. Dataset is complete (100% density)')}")
-        
-        # 9. Verdict
+        # Verdict
         print(f"🎯 {b('Verdict'):<{pad}} : {self.CYAN}{b(f'{strong_signals} Strong Signals.')}\n")
     def get_report(self):
         X_tmp = self.X.copy()
@@ -161,7 +161,7 @@ class VortexIntelligence:
         return self.report
 
         
-    def get_visual(self, figsize=(18, 5)):
+    def get_visual_report(self, figsize=(18, 5)):
         """Generates a 3-column diagnostic row for every feature with smart detection for encoded categories."""
         if self.report is None:
             self.get_report()
@@ -221,3 +221,4 @@ class VortexIntelligence:
 
             plt.tight_layout()
             plt.show()
+        return self.report
