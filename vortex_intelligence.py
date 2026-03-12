@@ -9,6 +9,10 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class VortexIntelligence:
+    """
+    Vortex Intelligence Suite - High Performance Data Audit
+    Final Corrected Version: Fixed AUC/Correlation Column Swapping.
+    """
     def __init__(self, X, y, task='classification', 
                  imbalance_threshold=3.0, 
                  skew_threshold=1.0, 
@@ -20,7 +24,7 @@ class VortexIntelligence:
         self.task = task.lower()
         self.report = None
         
-        # Configuration Thresholds
+        # Threshold Configurations
         self.imbalance_threshold = imbalance_threshold
         self.skew_threshold = skew_threshold
         self.kurtosis_threshold = kurtosis_threshold
@@ -47,22 +51,12 @@ class VortexIntelligence:
             top_a = self.report.iloc[0]['auc_roc']
             print(f"🛡️ Predictive: Top Feature [{top_f}] has AUC-ROC of {top_a:.4f} (Goal: >0.65)")
 
-        if outlier_cols > 0:
-            print(f"🚩 Outliers: Detected in {outlier_cols} columns (Limit: {self.outlier_iqr_multiplier}xIQR)")
-        else:
-            print(f"✨ Outliers: No extreme outliers found (Limit: {self.outlier_iqr_multiplier}xIQR)")
-
-        if (right_skew + left_skew) > 0:
-            print(f"📐 Skewness: {right_skew} Right, {left_skew} Left detected (Thr: ±{self.skew_threshold})")
-        else:
-            print(f"✨ Skewness: All features are symmetric (Thr: ±{self.skew_threshold})")
+        print(f"🚩 Outliers: Detected in {outlier_cols} columns (Limit: {self.outlier_iqr_multiplier}xIQR)")
+        print(f"📐 Skewness: {right_skew} Right, {left_skew} Left detected (Thr: ±{self.skew_threshold})")
         
-        if high_kurt > 0:
-            print(f"🏔️ Peaks: {high_kurt} columns with high Kurtosis (Thr: >{self.kurtosis_threshold})")
-        else:
-            print(f"✨ Peaks: Healthy tails (Thr: <{self.kurtosis_threshold})")
-            
-        print(f"✨ Null Values: {'Dataset is complete (100% density)' if missing_count == 0 else f'⚠️ Missing in {missing_count} cols'}")
+        kurt_status = f"{high_kurt} columns with High Kurtosis" if high_kurt > 0 else "Healthy tails"
+        print(f"🏔️ Peaks: {kurt_status} (Thr: <{self.kurtosis_threshold})")
+        print(f"✨ Null Values: {'Dataset is complete (100% density)' if missing_count == 0 else 'Missing data detected'}")
         print(f"📏 Data Range: {self.report['min'].min():.2f} to {self.report['max'].max():.2f}")
         print(f"🎯 Feature Verdict: {self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]} Strong Signals.")
         print("-" * 65)
@@ -79,43 +73,52 @@ class VortexIntelligence:
         stats = pd.DataFrame(index=self.X.columns)
         stats['dtype'] = self.X.dtypes.astype(str)
         
+        # We calculate column by column to ensure data integrity
         for col in self.X.columns:
-            if np.issubdtype(self.X[col].dtype, np.number):
-                stats.loc[col, 'mean'] = self.X[col].mean()
-                stats.loc[col, 'std'] = self.X[col].std()
-                stats.loc[col, 'min'] = self.X[col].min()
-                stats.loc[col, 'max'] = self.X[col].max()
-                stats.loc[col, 'skewness'] = self.X[col].skew()
-                stats.loc[col, 'kurtosis'] = self.X[col].kurtosis()
-                
+            is_num = np.issubdtype(self.X[col].dtype, np.number)
+            
+            stats.loc[col, 'mean'] = self.X[col].mean() if is_num else 0
+            stats.loc[col, 'std'] = self.X[col].std() if is_num else 0
+            stats.loc[col, 'min'] = self.X[col].min() if is_num else 0
+            stats.loc[col, 'max'] = self.X[col].max() if is_num else 0
+            stats.loc[col, 'skewness'] = self.X[col].skew() if is_num else 0
+            stats.loc[col, 'kurtosis'] = self.X[col].kurtosis() if is_num else 0
+            stats.loc[col, 'null_ratio'] = self.X[col].isnull().mean()
+            stats.loc[col, 'unique_counts'] = self.X[col].nunique()
+
+            if is_num:
+                # 1. Outlier Detection
                 Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
                 IQR = Q3 - Q1
                 stats.loc[col, 'outlier_count'] = ((self.X[col] < (Q1 - self.outlier_iqr_multiplier * IQR)) | 
                                                    (self.X[col] > (Q3 + self.outlier_iqr_multiplier * IQR))).sum()
                 
+                # 2. AUC-ROC (Correct Assignment)
                 if self.task == 'classification' and self.y.nunique() == 2:
                     try:
                         score = roc_auc_score(self.y, self.X[col])
                         stats.loc[col, 'auc_roc'] = max(score, 1 - score)
                     except: stats.loc[col, 'auc_roc'] = 0.5
                 else: stats.loc[col, 'auc_roc'] = 0.0
+
+                # 3. Correlation (Correct Assignment)
                 stats.loc[col, 'abs_target_corr'] = abs(self.X[col].corr(self.y))
             else:
-                stats.loc[col, ['mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 'outlier_count', 'abs_target_corr']] = 0.0
+                stats.loc[col, 'outlier_count'] = 0
                 stats.loc[col, 'auc_roc'] = 0.5
+                stats.loc[col, 'abs_target_corr'] = 0.0
 
-            stats.loc[col, 'null_ratio'] = self.X[col].isnull().mean()
-            stats.loc[col, 'unique_counts'] = self.X[col].nunique()
-
+        # Feature Importance
         X_tmp = self.X.copy()
         for col in X_tmp.select_dtypes(exclude=[np.number]).columns:
             X_tmp[col] = X_tmp[col].astype('category')
-
+        
         model = LGBMClassifier(n_estimators=100, importance_type='gain', verbosity=-1) if self.task == 'classification' else \
                 LGBMRegressor(n_estimators=100, importance_type='gain', verbosity=-1)
         model.fit(X_tmp, self.y)
         stats['lgbm_gain'] = model.feature_importances_
 
+        # Verdict
         def judge(row):
             if row['lgbm_gain'] > 100 or row['auc_roc'] > 0.65: return "✅ STRONG SIGNAL"
             if row['lgbm_gain'] == 0 and row['auc_roc'] <= 0.51: return "🗑️ GLOBAL NOISE"
@@ -123,8 +126,11 @@ class VortexIntelligence:
 
         stats['vortex_action'] = stats.apply(judge, axis=1)
         
-        self.report = stats[['dtype', 'mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 
-                            'outlier_count', 'auc_roc', 'abs_target_corr', 'null_ratio', 
-                            'unique_counts', 'lgbm_gain', 'vortex_action']].sort_values(by='lgbm_gain', ascending=False)
+        # STRICT REORDERING to prevent horizontal shifting
+        ordered_cols = ['dtype', 'mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 
+                        'outlier_count', 'auc_roc', 'abs_target_corr', 'null_ratio', 
+                        'unique_counts', 'lgbm_gain', 'vortex_action']
+        
+        self.report = stats[ordered_cols].sort_values(by='lgbm_gain', ascending=False)
         self._generate_text_summary()
         return self.report
