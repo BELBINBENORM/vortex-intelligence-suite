@@ -38,15 +38,19 @@ vortex = VortexIntelligence(X, y, task='classification')
 # Get the detailed report
 report = vortex.get_report()
 
-# Generate the 3-row visual diagnostics
-vortex.get_visual()
+# Generate the 3-row visual diagnostics as well as a detailed report
+report = vortex.get_visual_report()
 ```
 ---
 ## 📊 Intelligence Summary Output
 
 The suite provides a rapid human-readable summary of your dataset's health:
 
-<img width="656" height="203" alt="image" src="https://github.com/user-attachments/assets/adcfaa3f-958b-4de0-8cba-6e01e64f3dc5" />
+<img width="747" height="211" alt="image" src="https://github.com/user-attachments/assets/470b065b-f27c-45f5-95c7-472a18e54d28" />
+
+<img width="600" height="357" alt="image" src="https://github.com/user-attachments/assets/0c3b24ce-d43e-44e0-beb5-3c788db24b40" />
+
+Will give for all features.
 
 ---
 *Developed by **BELBIN BENO R M***
