@@ -1,14 +1,14 @@
 # 🌪️ Vortex Intelligence Suite
 
-**Vortex Intelligence Suite** is a high-speed, automated feature profiling and diagnostic tool designed for machine learning practitioners. [cite_start]It provides a comprehensive "intelligence report" by combining deep statistical metrics with Gradient Boosting feature importance to evaluate feature signals and noise[cite: 1, 12, 15].
+**Vortex Intelligence Suite** is a high-speed, automated feature profiling and diagnostic tool designed for machine learning practitioners. [cite_start]It provides a comprehensive "intelligence report" by combining deep statistical metrics with Gradient Boosting feature importance to evaluate feature signals and noise.
 ---
 ## 🚀 Features
 
-* [cite_start]**Target Diagnostics**: Automatically analyzes class imbalance for classification tasks and distribution properties like skew and kurtosis for regression[cite: 5, 6, 9, 11].
-* [cite_start]**Statistical Profiling**: Calculates skewness, kurtosis, and outlier counts using the Interquartile Range (IQR) method[cite: 3, 7, 13, 14].
-* [cite_start]**Signal Detection**: Categorizes features into **Strong Signal**, **Weak Signal**, or **Global Noise** based on LightGBM "Gain" importance and target correlation[cite: 8, 16, 17].
-* [cite_start]**Hybrid Data Support**: Handles both numerical and categorical columns within a single report, including data type identification[cite: 3, 11, 12, 15].
-* [cite_start]**Automated EDA**: Generates a grid-based visualization suite (3 plots per row) that automatically adapts between histograms and count plots based on data cardinality[cite: 18, 19, 20].
+* **Target Diagnostics**: Automatically analyzes class imbalance for classification tasks and distribution properties like skew and kurtosis for regression.
+* **Statistical Profiling**: Calculates skewness, kurtosis, and outlier counts using the Interquartile Range (IQR) method.
+* **Signal Detection**: Categorizes features into **Strong Signal**, **Weak Signal**, or **Global Noise** based on LightGBM "Gain" importance and target correlation.
+* **Hybrid Data Support**: Handles both numerical and categorical columns within a single report, including data type identification.
+* **Automated EDA**: Generates a grid-based visualization suite (3 plots per row) that automatically adapts between histograms and count plots based on data cardinality.
 ---
 ## 🛠️ Installation
 
