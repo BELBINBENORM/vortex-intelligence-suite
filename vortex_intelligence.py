@@ -2,14 +2,24 @@ import pandas as pd
 import numpy as np
 from lightgbm import LGBMClassifier, LGBMRegressor
 from sklearn.metrics import roc_auc_score
+import matplotlib.pyplot as plt
+import seaborn as sns
 import warnings
 
 warnings.filterwarnings('ignore')
 
 class VortexIntelligence:
+    # ANSI Color Constants
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+
     def __init__(self, X, y, task='classification', 
                  imbalance_threshold=3.0, skew_threshold=1.0, 
-                 kurtosis_threshold=10.0, outlier_iqr_multiplier=3.0):
+                 kurtosis_threshold=15.0, outlier_iqr_multiplier=3.0):
         self.X = X.copy().reset_index(drop=True)
         self.y = pd.Series(y).reset_index(drop=True)
         self.task = task.lower()
@@ -19,85 +29,186 @@ class VortexIntelligence:
         self.kurtosis_threshold = kurtosis_threshold
         self.outlier_iqr_multiplier = outlier_iqr_multiplier
 
+    def _determine_data_level(self, col):
+        unique_c = self.X[col].nunique()
+        is_num = np.issubdtype(self.X[col].dtype, np.number)
+        if not is_num or unique_c <= 5:
+            return "Nominal"
+        if is_num and np.array_equal(self.X[col], self.X[col].astype(int)) and unique_c <= 20:
+            return "Ordinal"
+        if is_num:
+            return "Ratio" if self.X[col].min() >= 0 else "Interval"
+        return "Nominal"
+
     def _generate_text_summary(self):
         if self.report is None: return
+        
         outlier_cols = self.report[self.report['outlier_count'] > 0].shape[0]
-        right_skew = self.report[self.report['skewness'] > self.skew_threshold].shape[0]
-        left_skew = self.report[self.report['skewness'] < -self.skew_threshold].shape[0]
+        skew_count = self.report[(self.report['skewness'] > self.skew_threshold) | 
+                                 (self.report['skewness'] < -self.skew_threshold)].shape[0]
         high_kurt = self.report[self.report['kurtosis'] > self.kurtosis_threshold].shape[0]
         missing_count = self.report[self.report['null_ratio'] > 0].shape[0]
+        levels = self.report['level'].value_counts().to_dict()
+        strong_signals = self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]
 
-        print("\n📝 --- VORTEX INTELLIGENCE SUMMARY ---")
+        # Helper to wrap text in BOLD
+        def b(text): return f"{self.BOLD}{text}{self.RESET}"
+
+        print(f"\n   {b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
+        
+        # Consistent padding for alignment
+        pad = 25
+
+        # 1. Balance
         if self.task == 'classification':
-            ratio = self.y.value_counts().max() / self.y.value_counts().min()
-            status = "🚩 High Imbalance" if ratio > self.imbalance_threshold else "✅ Balanced"
-            print(f"⚖️ Balance: {status} (Ratio {ratio:.2f}:1 | Thr: {self.imbalance_threshold}:1)")
-            print(f"🛡️ Predictive: Top Feature [{self.report.index[0]}] has AUC-ROC of {self.report.iloc[0]['auc_roc']:.4f} (Goal: >0.65)")
+            counts = self.y.value_counts()
+            ratio = counts.max() / counts.min()
+            bal_status = "High Imbalance" if ratio > self.imbalance_threshold else "Balanced"
+            bal_color = self.RED if ratio > self.imbalance_threshold else self.GREEN
+            print(f"⚖️ {b('Balance'):<{pad}} : {bal_color}{b(bal_status)} {b(f'(Ratio {ratio:.2f}:1 | Thr: {self.imbalance_threshold}:1)')}")
+            
+            # 2. Predictive
+            top_f = self.report.iloc[0]['feature_name']
+            auc_val = self.report.iloc[0]['auc_roc']
+            auc_color = self.GREEN if auc_val > 0.65 else self.YELLOW
+            print(f"🛡️ {b('Predictive'):<{pad}} : {auc_color}{b(f'Top Feature [{top_f}] has AUC-ROC of {auc_val:.4f}')} {b('(Goal: >0.65)')}")
 
-        print(f"🚩 Outliers: {f'Detected in {outlier_cols} columns' if outlier_cols > 0 else '✨ It\'s fine. No extreme outliers'} (Limit: {self.outlier_iqr_multiplier}xIQR)")
-        print(f"📐 Skewness: {f'{right_skew} Right, {left_skew} Left detected' if (right_skew+left_skew) > 0 else '✨ It\'s fine. Symmetric'} (Thr: ±{self.skew_threshold})")
-        print(f"🏔️ Peaks: {f'{high_kurt} columns with High Kurtosis' if high_kurt > 0 else '✨ It\'s fine. Healthy tails'} (Thr: <{self.kurtosis_threshold})")
-        print(f"✨ Null Values: {'⚠️ Missing data detected' if missing_count > 0 else '✨ It\'s fine. Dataset is complete (100% density)'}")
-        print(f"📏 Data Range: {self.report['min'].min():.2f} to {self.report['max'].max():.2f}")
-        print(f"🎯 Feature Verdict: {self.report[self.report['vortex_action'] == '✅ STRONG SIGNAL'].shape[0]} Strong Signals.")
-        print("-" * 65)
+        # 3. Composition
+        comp_text = f"{levels.get('Ratio', 0)} Ratio, {levels.get('Interval', 0)} Interval, {levels.get('Ordinal', 0)} Ordinal, {levels.get('Nominal', 0)} Nominal"
+        print(f"📊 {b('Composition'):<{pad}} : {self.CYAN}{b(comp_text)}")
+        
+        # 4. Outliers
+        out_color = self.RED if outlier_cols > 0 else self.GREEN
+        out_msg = f"Detected in {outlier_cols} columns" if outlier_cols > 0 else "It's fine. No extreme outliers"
+        print(f"🚩 {b('Outliers'):<{pad}} : {out_color}{b(out_msg)} {b(f'(Limit: {self.outlier_iqr_multiplier}xIQR)')}")
+        
+        # 5. Skewness
+        skew_color = self.RED if skew_count > 0 else self.GREEN
+        skew_msg = f"{skew_count} columns skewed" if skew_count > 0 else "It's fine. Symmetric"
+        print(f"📐 {b('Skewness'):<{pad}} : {skew_color}{b(skew_msg)} {b(f'(Thr: ±{self.skew_threshold})')}")
+        
+        # 6. Peaks
+        kurt_color = self.RED if high_kurt > 0 else self.GREEN
+        kurt_msg = f"{high_kurt} columns with High Kurtosis" if high_kurt > 0 else "It's fine. Healthy tails"
+        print(f"🏔️ {b('Peaks'):<{pad}} : {kurt_color}{b(kurt_msg)} {b(f'(Thr: <{self.kurtosis_threshold})')}")
+        
+        # 7. Null Values
+        null_color = self.RED if missing_count > 0 else self.GREEN
+        null_msg = 'Missing data detected' if missing_count > 0 else 'It\'s fine. Dataset is complete (100% density)'
+        print(f"✨ {b('Null Values'):<{pad}} : {null_color}{b(null_msg)}")
+        
+        # 8. Verdict
+        print(f"🎯 {b('Feature Verdict'):<{pad}} : {self.CYAN}{b(f'{strong_signals} Strong Signals.')}\n")
 
     def get_report(self):
-        # 1. Feature Importance First (to get lgbm_gain)
         X_tmp = self.X.copy()
         for c in X_tmp.select_dtypes(exclude=[np.number]).columns: 
             X_tmp[c] = X_tmp[c].astype('category')
         
-        model = LGBMClassifier(n_estimators=50, verbosity=-1) if self.task == 'classification' else LGBMRegressor(n_estimators=50, verbosity=-1)
+        model = LGBMClassifier(n_estimators=100, importance_type='gain', verbosity=-1) if self.task == 'classification' else \
+                LGBMRegressor(n_estimators=100, importance_type='gain', verbosity=-1)
         model.fit(X_tmp, self.y)
-        importances = dict(zip(self.X.columns, model.feature_importances_))
+        gains = dict(zip(self.X.columns, model.feature_importances_))
 
-        # 2. Build results row by row using a strict dictionary list
-        results_list = []
+        data_list = []
         for col in self.X.columns:
             is_num = np.issubdtype(self.X[col].dtype, np.number)
+            auc, corr, out_count = 0.5, 0.0, 0
+            unique_c = int(self.X[col].nunique())
+            level = self._determine_data_level(col)
             
-            # Base data
-            row = {
-                'feature': col,
-                'dtype': str(self.X[col].dtype),
+            if is_num:
+                if unique_c > 10:
+                    Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
+                    IQR = Q3 - Q1
+                    out_count = int(((self.X[col] < (Q1 - self.outlier_iqr_multiplier * IQR)) | 
+                                     (self.X[col] > (Q3 + self.outlier_iqr_multiplier * IQR))).sum())
+                
+                if self.task == 'classification':
+                    try:
+                        score = roc_auc_score(self.y, self.X[col])
+                        auc = max(score, 1 - score)
+                    except: auc = 0.5
+                corr = abs(self.X[col].corr(self.y))
+
+            data_list.append({
+                'feature_name': col, 'level': level,
                 'mean': self.X[col].mean() if is_num else 0,
                 'std': self.X[col].std() if is_num else 0,
                 'min': self.X[col].min() if is_num else 0,
                 'max': self.X[col].max() if is_num else 0,
                 'skewness': self.X[col].skew() if is_num else 0,
                 'kurtosis': self.X[col].kurtosis() if is_num else 0,
-                'outlier_count': 0,
-                'auc_roc': 0.0,
-                'abs_target_corr': 0.0,
-                'null_ratio': self.X[col].isnull().mean(),
-                'unique_counts': self.X[col].nunique(),
-                'lgbm_gain': importances.get(col, 0)
-            }
+                'outlier_count': int(out_count), 'auc_roc': auc,
+                'abs_target_corr': corr, 'null_ratio': self.X[col].isnull().mean(),
+                'unique_counts': unique_c, 'lgbm_gain': int(gains.get(col, 0)),
+                'vortex_action': "✅ STRONG SIGNAL" if (gains.get(col, 0) > 100 or auc > 0.65) else "⚠️ WEAK SIGNAL"
+            })
 
-            if is_num:
-                # Outliers
-                Q1, Q3 = self.X[col].quantile(0.25), self.X[col].quantile(0.75)
-                row['outlier_count'] = ((self.X[col] < (Q1 - self.outlier_iqr_multiplier * (Q3-Q1))) | (self.X[col] > (Q3 + self.outlier_iqr_multiplier * (Q3-Q1)))).sum()
-                
-                # AUC-ROC
-                if self.task == 'classification':
-                    try:
-                        score = roc_auc_score(self.y, self.X[col])
-                        row['auc_roc'] = max(score, 1 - score)
-                    except: row['auc_roc'] = 0.5
-                
-                # Correlation
-                row['abs_target_corr'] = abs(self.X[col].corr(self.y))
-            
-            # Action Verdict
-            row['vortex_action'] = "✅ STRONG SIGNAL" if row['lgbm_gain'] > 100 or row['auc_roc'] > 0.65 else "⚠️ WEAK SIGNAL"
-            results_list.append(row)
-
-        # 3. Create DataFrame and enforce order
-        self.report = pd.DataFrame(results_list).set_index('feature')
-        order = ['dtype', 'mean', 'std', 'min', 'max', 'skewness', 'kurtosis', 'outlier_count', 'auc_roc', 'abs_target_corr', 'null_ratio', 'unique_counts', 'lgbm_gain', 'vortex_action']
-        self.report = self.report[order].sort_values('lgbm_gain', ascending=False)
+        self.report = pd.DataFrame(data_list).sort_values('lgbm_gain', ascending=False).reset_index(drop=True)
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', 1000)
+        pd.set_option('display.max_rows', None)
         
         self._generate_text_summary()
         return self.report
+        
+    def get_visual(self, figsize=(18, 5)):
+        """Generates a 3-column diagnostic row for every feature with smart detection for encoded categories."""
+        if self.report is None:
+            self.get_report()
+        else:
+            self._generate_text_summary()
+
+        sns.set_style("whitegrid")
+        
+        for feature in self.report['feature_name']:
+            # Check if numeric AND has enough variety to be truly continuous
+            unique_count = self.X[feature].nunique()
+            is_num = np.issubdtype(self.X[feature].dtype, np.number)
+            is_continuous = is_num and unique_count > 10
+            
+            fig, axes = plt.subplots(1, 3, figsize=figsize)
+            fig.suptitle(f"FEATURE ANALYSIS: {feature.upper()}", fontsize=16, fontweight='bold', y=1.05)
+
+            # --- 1. DISTRIBUTION CHART ---
+            if is_continuous:
+                sns.histplot(self.X[feature], kde=True, ax=axes[0], color='skyblue')
+                axes[0].set_title(f"Distribution (Skew: {self.X[feature].skew():.2f})")
+            else:
+                # Better for Label Encoded / Categorical
+                sns.countplot(data=self.X, x=feature, ax=axes[0], palette="viridis")
+                axes[0].set_title(f"Frequency (Categorical/Encoded)")
+
+            # --- 2. COMPOSITION / OUTLIER CHART ---
+            if is_continuous:
+                sns.boxplot(x=self.X[feature], ax=axes[1], color='salmon', fliersize=5)
+                axes[1].set_title("Outlier Detection (Boxplot)")
+            else:
+                # Show the composition of labels
+                self.X[feature].value_counts().plot(kind='pie', ax=axes[1], autopct='%1.1f%%', 
+                                                   colors=sns.color_palette("pastel"), startangle=90)
+                axes[1].set_ylabel('')
+                axes[1].set_title("Composition (%)")
+
+            # --- 3. TARGET RELATIONSHIP ---
+            if self.task == 'classification':
+                if is_num:
+                    sns.violinplot(x=self.y, y=self.X[feature], ax=axes[2], palette="muted", split=True)
+                    axes[2].set_title("Relationship with Target")
+                else:
+                    # Heatmap for pure categorical
+                    ct = pd.crosstab(self.X[feature], self.y, normalize='index')
+                    sns.heatmap(ct, annot=True, cmap="YlGnBu", ax=axes[2], cbar=False)
+                    axes[2].set_title("Target Correlation Heatmap")
+            else:
+                # Regression Trend
+                if is_continuous:
+                    sns.regplot(x=self.X[feature], y=self.y, ax=axes[2], scatter_kws={'alpha':0.3}, line_kws={'color':'red'})
+                    axes[2].set_title("Regression Trend")
+                else:
+                    sns.boxplot(x=self.X[feature], y=self.y, ax=axes[2], palette="magma")
+                    axes[2].set_title("Target Dist. per Category")
+
+            plt.tight_layout()
+            plt.show()
