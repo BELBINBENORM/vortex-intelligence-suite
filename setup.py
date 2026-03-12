@@ -17,6 +17,7 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     python_requires='>=3.8',
+    py_modules=["vortex_intelligence"],
     install_requires=[
         "pandas",
         "numpy",
