@@ -17,11 +17,7 @@ class VortexIntelligence:
     BOLD = "\033[1m"
     RESET = "\033[0m"
 
-    def __init__(self, X, y, task='classification', 
-             imbalance_threshold=3,     # Warning only if serious
-             skew_threshold=0.75,         # Catch skewness slightly earlier (0.75 is very professional)
-             kurtosis_threshold=10.0,    # 10 is the "danger zone" for peaks
-             outlier_iqr_multiplier=3.0): # Only report "Extreme" outliers
+    def __init__(self, X, y, task='classification',imbalance_threshold=4,skew_threshold=0.75,kurtosis_threshold=10.0,outlier_iqr_multiplier=3.0):
         self.X = X.copy().reset_index(drop=True)
         self.y = pd.Series(y).reset_index(drop=True)
         self.task = task.lower()
@@ -67,7 +63,7 @@ class VortexIntelligence:
         if self.task == 'classification':
             counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
-            bal_status = "High Imbalance" if ratio > self.imbalance_threshold else "Balanced"
+            bal_status = "High Imbalance" if ratio > self.imbalance_threshold else "Balanced / Manageable"
             bal_color = self.RED if ratio > self.imbalance_threshold else self.GREEN
             print(f"⚖️ {b('Balance'):<{pad}} : {bal_color}{b(bal_status)} {b(f'(Ratio {ratio:.2f}:1 | Thr: {self.imbalance_threshold}:1)')}")
             
