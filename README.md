@@ -13,7 +13,7 @@
 ## 🛠️ Installation
 
 ```bash
-git clone [https://github.com/BELBINBENORM/vortex-intelligence-suite.git](https://github.com/BELBINBENORM/vortex-intelligence-suite.git)
+git clone https://github.com/BELBINBENORM/vortex-intelligence-suite.git
 cd vortex-intelligence-suite
 pip install -r requirements.txt
 ```
