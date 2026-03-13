@@ -19,10 +19,11 @@ class VortexIntelligence:
 
     def __init__(self, X, y, task='classification', imbalance_threshold=4, skew_threshold=0.75, kurtosis_threshold=10.0, outlier_iqr_multiplier=3.0, feature_names=None):
         # --- ARRAY HANDLING LOGIC ---
+        self.feature_names = feature_names
         if isinstance(X, np.ndarray):
-            if feature_names is None:
-                feature_names = [f"feat_{i}" for i in range(X.shape[1])]
-            self.X = pd.DataFrame(X, columns=feature_names).reset_index(drop=True)
+            if self.feature_names is None:
+                self.feature_names = [f"feat_{i}" for i in range(X.shape[1])]
+            self.X = pd.DataFrame(X, columns=self.feature_names).reset_index(drop=True)
         else:
             self.X = X.copy().reset_index(drop=True)
         
