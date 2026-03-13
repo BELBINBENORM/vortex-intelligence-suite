@@ -212,7 +212,10 @@ class VortexIntelligence:
         return self.report
 
     def get_visual_report(self, figsize=(18, 5)): 
-        if self.report is None: self.get_report() else: self._generate_text_summary()
+        if self.report is None: 
+            self.get_report() 
+        else: 
+            self._generate_text_summary()
         sns.set_style("whitegrid")
         for feature in self.report['feature_name']:
             level = self.report.loc[self.report['feature_name'] == feature, 'level'].values[0] 
