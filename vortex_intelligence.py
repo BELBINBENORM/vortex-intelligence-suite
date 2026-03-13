@@ -80,9 +80,17 @@ class VortexIntelligence:
 
         # Balance 
         if self.task == 'classification':
-            ratio = self.y.value_counts().max() / self.y.value_counts().min()
-            bal_c, bal_txt = (self.GREEN, f"Balanced/Moderate (Ratio {ratio:.2f}:1)") if ratio <= self.imbalance_threshold else (self.RED, f"Severely Skewed (Ratio {ratio:.2f}:1)")
-            print(f"⚖️ {b('Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
+            counts = self.y.value_counts()
+            ratio = counts.max() / counts.min()
+            
+            if ratio <= 1.5:
+                bal_c, bal_txt = self.GREEN, f"Balanced (Ratio {ratio:.2f}:1)"
+            elif ratio <= self.imbalance_threshold:
+                bal_c, bal_txt = self.YELLOW, f"Moderate (Ratio {ratio:.2f}:1)"
+            else:
+                bal_c, bal_txt = self.RED, f"Severely Skewed (Ratio {ratio:.2f}:1)"
+                
+            print(f"⚖️ {b('4. Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
 
         # Redundancy 
         red_c, red_txt = (self.GREEN, f"Clean (Correlations < {self.redundancy_threshold:.2f})") if redundant_count == 0 else (self.YELLOW, f"{redundant_count} Twins Detected (Correlations > {self.redundancy_threshold:.2f})")
