@@ -9,7 +9,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class VortexIntelligence:
-    # UI Constants
+    # UI Constants [cite: 1]
     GREEN, RED, YELLOW, CYAN = "\033[92m", "\033[91m", "\033[93m", "\033[96m"
     BOLD, RESET = "\033[1m", "\033[0m"
 
@@ -19,16 +19,18 @@ class VortexIntelligence:
                  redundancy_threshold=0.90, cardinality_threshold=100,
                  leakage_threshold=0.95, feature_names=None):
         
+        # Hard-cast to DataFrame for consistency [cite: 2]
         if isinstance(X, np.ndarray):
             f_names = feature_names or [f"feat_{i}" for i in range(X.shape[1])]
             self.X = pd.DataFrame(X, columns=f_names).reset_index(drop=True)
         else:
-            self.X = X.copy().reset_index(drop=True)
+            self.X = X.copy().reset_index(drop=True) [cite: 3]
             
         self.y = pd.Series(y).reset_index(drop=True)
         self.task = task.lower()
         self.report = None
         
+        # Threshold Parameters [cite: 4]
         self.imbalance_threshold = imbalance_threshold
         self.skew_threshold = skew_threshold
         self.kurtosis_threshold = kurtosis_threshold
@@ -38,7 +40,7 @@ class VortexIntelligence:
         self.leakage_threshold = leakage_threshold
         self.cat_features = []
 
-    def _determine_data_level(self, col):
+    def _determine_data_level(self, col): [cite: 5]
         unique_c = self.X[col].nunique()
         is_num = np.issubdtype(self.X[col].dtype, np.number)
         if not is_num or unique_c <= 5: return "Nominal"
@@ -48,64 +50,71 @@ class VortexIntelligence:
     def _generate_text_summary(self):
         if self.report is None: return
         
-        num_rep = self.report[self.report['level'].isin(['Interval', 'Ratio'])]
+        num_rep = self.report[self.report['level'].isin(['Interval', 'Ratio'])] [cite: 6]
         cat_rep = self.report[self.report['level'].isin(['Nominal', 'Ordinal'])]
         
-        # Calculation Logic for Failures
+        # 1. Calculation Logic for Failure Counts [cite: 7, 8]
         redundant_count = self.report[self.report['vortex_action'].str.contains("Redundant")].shape[0]
         const_count = self.report[self.report['is_constant'] == True].shape[0]
         card_stress = self.report[(self.report['level'].isin(['Nominal', 'Ordinal'])) & (self.report['cardinality'] > self.cardinality_threshold)].shape[0]
         leak_count = self.report[self.report['is_leakage'] == True].shape[0]
         outlier_cols = num_rep[num_rep['outlier_count'] > 0].shape[0]
+        out_total = num_rep['outlier_count'].sum() if not num_rep.empty else 0
         skew_count = num_rep[(num_rep['skewness'] != "Categorical") & (pd.to_numeric(num_rep['skewness']).abs() > self.skew_threshold)].shape[0]
         kurt_count = num_rep[(num_rep['kurtosis'] != "Categorical") & (pd.to_numeric(num_rep['kurtosis']) > self.kurtosis_threshold)].shape[0]
         strong_signals = self.report[self.report['vortex_action'] == '🚀 STRONG SIGNAL'].shape[0]
-
-        # Wording Logic Mapper
-        def get_status(count, healthy_msg, warning_msg, crit_msg=None):
-            if count == 0: return self.GREEN, healthy_msg
-            if crit_msg and count > (len(self.X.columns) // 2): return self.RED, crit_msg
-            return self.YELLOW, warning_msg
 
         def b(text): return f"{self.BOLD}{text}{self.RESET}"
         pad = 25
         print(f"\n{b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
 
-        # 1-3: Scale & Health
+        # 1-3: Scale & Health [cite: 9]
         scale_txt = "Robust Scale" if len(self.X) > 10000 else "Limited Scale" if len(self.X) > 100 else "Micro Scale"
         print(f"📋 {b('1. Dataset Scale'):<{pad}} : {self.CYAN}{b(f'{scale_txt} ({len(self.X):,} Rows x {self.X.shape[1]} Features)')}")
-        comp_txt = "Balanced Type" if num_rep.shape[0] > 0 and cat_rep.shape[0] > 0 else "Uniform Type"
+        comp_txt = "Mixed Feature Types" if num_rep.shape[0] > 0 and cat_rep.shape[0] > 0 else "Uniform Type"
         print(f"📊 {b('2. Composition'):<{pad}} : {self.CYAN}{b(f'{comp_txt} ({num_rep.shape[0]} Numerical, {cat_rep.shape[0]} Categorical)')}")
         null_sum = self.report['null_ratio'].sum()
-        null_c, null_txt = (self.GREEN, "Pristine (No missing data detected)") if null_sum == 0 else (self.RED, "Critical (High volume missing data)") if null_sum > 0.5 else (self.YELLOW, "Warning (Sparse missing data detected)")
+        null_c, null_txt = (self.GREEN, "Pristine (No missing data detected)") if null_sum == 0 else (self.YELLOW, "Warning (Sparse missing data detected)")
+        if null_sum > 0.5: null_c, null_txt = (self.RED, "Critical (High volume of missing data)")
         print(f"✨ {b('3. Null Values'):<{pad}} : {null_c}{b(null_txt)}")
 
-        # 4: Balance
+        # 4: Balance [cite: 10]
         if self.task == 'classification':
             ratio = self.y.value_counts().max() / self.y.value_counts().min()
             bal_c, bal_txt = (self.GREEN, f"Balanced/Moderate (Ratio {ratio:.2f}:1)") if ratio <= self.imbalance_threshold else (self.RED, f"Severely Skewed (Ratio {ratio:.2f}:1)")
             print(f"⚖️ {b('4. Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
 
-        # 5-7: Quality
-        red_c, red_txt = get_status(redundant_count, f"Clean (Correlations < {self.redundancy_threshold:.2f})", f"{redundant_count} Twins Detected (Correlations > {self.redundancy_threshold:.2f})", "Critical Redundancy (Multiple identical twins)")
+        # 5: Redundancy [cite: 11]
+        red_c, red_txt = (self.GREEN, f"Clean (Correlations < {self.redundancy_threshold:.2f})") if redundant_count == 0 else (self.YELLOW, f"{redundant_count} Twins Detected (Correlations > {self.redundancy_threshold:.2f})")
+        if redundant_count > (len(self.X.columns) // 2): red_c, red_txt = (self.RED, "Critical Redundancy (Multiple identical twins)")
         print(f"🖇️ {b('5. Redundancy'):<{pad}} : {red_c}{b(red_txt)}")
-        stab_c, stab_txt = get_status(const_count, "Healthy Variance (No constant columns)", f"{const_count} Dead Columns (Constant/Zero-variance)", "Unstable (Most columns are constant)")
+
+        # 6: Stability
+        stab_c, stab_txt = (self.GREEN, "Healthy Variance (No constant columns)") if const_count == 0 else (self.YELLOW, f"{const_count} Low Stability (Low-variance columns found)")
+        if const_count > 0: stab_c, stab_txt = (self.RED, f"{const_count} Dead Columns (Constant/Zero-variance)")
         print(f"🧊 {b('6. Stability'):<{pad}} : {stab_c}{b(stab_txt)}")
-        card_c, card_txt = get_status(card_stress, "Optimized (Well-grouped categories)", f"{card_stress} High Stress Columns (Potential cardinality stress)", "Critical (Category counts near row count)")
+
+        # 7: Cardinality
+        card_c, card_txt = (self.GREEN, "Optimized (Well-grouped categories)") if card_stress == 0 else (self.YELLOW, f"{card_stress} High Complexity (Potential cardinality stress)")
+        if card_stress > (len(self.X.columns) // 2): card_c, card_txt = (self.RED, "Critical (Category unique counts near row count)")
         print(f"🗂️ {b('7. Cardinality'):<{pad}} : {card_c}{b(card_txt)}")
 
-        # 8-10: Distributions
-        out_total = num_rep['outlier_count'].sum() if not num_rep.empty else 0
-        out_c, out_txt = (self.GREEN, f"None (< {self.outlier_iqr_multiplier}xIQR)") if out_total == 0 else (self.RED, "Extreme (Severe outlier distortion)") if out_total > (len(self.X)*0.1) else (self.YELLOW, f"{int(out_total)} detected (> {self.outlier_iqr_multiplier}xIQR)")
+        # 8: Outliers
+        out_c, out_txt = (self.GREEN, f"None (< {self.outlier_iqr_multiplier}xIQR)") if out_total == 0 else (self.YELLOW, f"{int(out_total)} detected (> {self.outlier_iqr_multiplier}xIQR)")
+        if out_total > (len(self.X)*0.1): out_c, out_txt = (self.RED, "Extreme (Severe outlier distortion detected)")
         print(f"🚩 {b('8. Outliers'):<{pad}} : {out_c}{b(out_txt)}")
         
-        skew_c, skew_txt = get_status(skew_count, f"Symmetric Distribution [-{self.skew_threshold}, {self.skew_threshold}]", f"{skew_count} Columns Distorted (Outside [-{self.skew_threshold}, {self.skew_threshold}])", "Critical (All numeric columns distorted)")
+        # 9: Skewness
+        skew_c, skew_txt = (self.GREEN, f"Symmetric Distribution [-{self.skew_threshold}, {self.skew_threshold}]") if skew_count == 0 else (self.YELLOW, f"{skew_count} Columns Distorted (Outside [-{self.skew_threshold}, {self.skew_threshold}])")
+        if skew_count == len(num_rep) and len(num_rep) > 0: skew_c, skew_txt = (self.RED, "Critical (All numeric columns distorted)")
         print(f"📐 {b('9. Skewness'):<{pad}} : {skew_c}{b(skew_txt)}")
         
-        kurt_c, kurt_txt = get_status(kurt_count, f"Normal Peaks (< {self.kurtosis_threshold})", f"{kurt_count} Columns Sharp Peaks (> {self.kurtosis_threshold})", "Critical (Extreme heavy-tailed distribution)")
+        # 10: Kurtosis
+        kurt_c, kurt_txt = (self.GREEN, f"Normal Peaks (< {self.kurtosis_threshold})") if kurt_count == 0 else (self.YELLOW, f"{kurt_count} Columns Sharp Peaks (> {self.kurtosis_threshold})")
+        if kurt_count > 0 and num_rep['kurtosis'].astype(float).max() > 50: kurt_c, kurt_txt = (self.RED, "Critical (Extreme heavy-tailed distribution)")
         print(f"🏔️ {b('10. Kurtosis'):<{pad}} : {kurt_c}{b(kurt_txt)}")
 
-        # 11-12: Ranges
+        # 11-12: Ranges 
         c_min = cat_rep['min'].astype(float).min() if not cat_rep.empty else 0.0
         c_max = cat_rep['max'].astype(float).max() if not cat_rep.empty else 0.0
         n_min = num_rep['min'].astype(float).min() if not num_rep.empty else 0.0
@@ -115,28 +124,34 @@ class VortexIntelligence:
         print(f"📉 {b('11. Categorical Range'):<{pad}} : {cr_c}{b(cr_txt)}")
         print(f"📈 {b('12. Numerical Range'):<{pad}} : {self.CYAN}{b(f'Standardized (Min: {n_min:.2f} | Max: {n_max:.2f})')}")
 
-        # 13-15: Power & Verdict
+        # 13-15: Power & Verdict 
         p_metric = 'auc_roc' if self.task == 'classification' else 'spearman_corr'
         top_f = self.report.iloc[0]['feature_name'] if not self.report.empty else "N/A"
         top_v = self.report.iloc[0][p_metric] if not self.report.empty else 0.0
-        pred_c = self.GREEN if top_v > 0.65 else self.YELLOW if top_v > 0.55 else self.RED
-        print(f"🛡️ {b('13. Predictive'):<{pad}} : {pred_c}{b(f'Strong Signal [{top_f}] AUC: {top_v:.4f}' if top_v > 0.65 else 'No Signal Found')}")
+        pred_c = self.GREEN if top_v > 0.65 else (self.YELLOW if top_v > 0.55 else self.RED)
+        pred_txt = f"Strong Signal [{top_f}] AUC: {top_v:.4f}" if top_v > 0.65 else (f"Moderate Signal AUC: {top_v:.4f}" if top_v > 0.55 else "No Signal Found")
+        print(f"🛡️ {b('13. Predictive'):<{pad}} : {pred_c}{b(pred_txt)}")
         
-        leak_c, leak_txt = get_status(leak_count, f"Safe (No correlations > {self.leakage_threshold})", f"{leak_count} Feature Alert (Correlation > {self.leakage_threshold})", "Danger (Direct target leakage detected)")
+        leak_c, leak_txt = (self.GREEN, f"Safe (No correlations > {self.leakage_threshold})") if leak_count == 0 else (self.YELLOW, f"Warning (Potential data leakage detected)")
+        if leak_count > 0 and top_v > 0.98: leak_c, leak_txt = (self.RED, "Danger (Direct target leakage detected)")
         print(f"🌊 {b('14. Leakage Alert'):<{pad}} : {leak_c}{b(leak_txt)}")
         
         v_color = self.RED if (leak_count > 0 or const_count > 0 or c_min < 0 or strong_signals == 0) else self.GREEN
-        v_msg = f"{strong_signals} Strong Signals. Ready for model training." if v_color == self.GREEN else f"{strong_signals} Strong Signals. Review 'Danger Zone' before training."
-        if strong_signals == 0: v_msg = "0 Strong Signals. Data quality too low."
+        if strong_signals == 0:
+            v_msg = "0 Strong Signals. Data quality too low for training."
+        elif v_color == self.RED:
+            v_msg = f"{strong_signals} Strong Signals. Review 'Danger Zone' before training."
+        else:
+            v_msg = f"{strong_signals} Strong Signals. Ready for model training."
         print(f"🎯 {b('15. Final Verdict'):<{pad}} : {v_color}{b(v_msg)}\n")
 
     def get_report(self):
         X_tmp = self.X.copy()
         self.cat_features = []
         corr_matrix = self.X.select_dtypes(include=[np.number]).corr().abs()
-        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) [cite: 14]
         
-        for col in self.X.columns:
+        for col in self.X.columns: [cite: 15]
             if self._determine_data_level(col) in ["Nominal", "Ordinal"]:
                 self.cat_features.append(col)
                 X_tmp[col] = X_tmp[col].astype('category')
@@ -145,48 +160,48 @@ class VortexIntelligence:
         model.fit(X_tmp, self.y)
         gains = dict(zip(self.X.columns, model.feature_importances_))
         
-        data_list = []
+        data_list = [] [cite: 16]
         for col in self.X.columns:
             level = self._determine_data_level(col)
             is_num = np.issubdtype(self.X[col].dtype, np.number)
             is_cat = level in ["Nominal", "Ordinal"]
             is_const = self.X[col].nunique() <= 1
             
-            if self.task == 'classification':
+            if self.task == 'classification': [cite: 17]
                 try: 
                     score = roc_auc_score(self.y, pd.to_numeric(self.X[col], errors='coerce').fillna(0))
                     power_val = max(score, 1 - score)
-                except: power_val = 0.5
+                except: power_val = 0.5 [cite: 18]
                 metric_name = 'auc_roc'
             else:
                 power_val = self.X[col].corr(self.y, method='spearman')
                 power_val = abs(power_val) if not np.isnan(power_val) else 0.0
                 metric_name = 'spearman_corr'
 
-            if is_num:
+            if is_num: [cite: 19]
                 desc = self.X[col].describe()
                 skew_v, kurt_v = (self.X[col].skew(), self.X[col].kurtosis()) if not is_cat else ("Categorical", "Categorical")
                 iqr = desc['75%'] - desc['25%']
-                out_c = ((self.X[col] < (desc['25%'] - self.outlier_iqr_multiplier*iqr)) | (self.X[col] > (desc['75%'] + self.outlier_iqr_multiplier*iqr))).sum() if not is_cat else -1
+                out_c = ((self.X[col] < (desc['25%'] - self.outlier_iqr_multiplier*iqr)) | (self.X[col] > (desc['75%'] + self.outlier_iqr_multiplier*iqr))).sum() if not is_cat else -1 [cite: 20]
             else:
                 desc = {'mean':0,'std':0,'min':0,'25%':0,'50%':0,'75%':0,'max':0}
-                skew_v = kurt_v = "Categorical"; out_c = -1
+                skew_v = kurt_v = "Categorical"; out_c = -1 [cite: 21]
 
             twins = upper.index[upper[col] > self.redundancy_threshold].tolist()
             is_leakage = power_val > self.leakage_threshold
             
             reason = "Healthy"
-            if is_leakage: action, reason = "💀 DANGER (DROP)", "Data Leakage (Too high correlation)"
+            if is_leakage: action, reason = "💀 DANGER (DROP)", "Data Leakage (Too high correlation)" [cite: 22]
             elif is_const: action, reason = "💀 DANGER (DROP)", "Constant Column (No variance)"
             elif twins: action, reason = "💀 DANGER (DROP)", f"Redundant (Twin of {', '.join(twins)})"
-            elif (gains.get(col, 0) > 100 or power_val > 0.65): action, reason = "🚀 STRONG SIGNAL", "High Predictive Power"
+            elif (gains.get(col, 0) > 100 or power_val > 0.65): action, reason = "🚀 STRONG SIGNAL", "High Predictive Power" [cite: 23]
             else: action, reason = "⚠️ WEAK/NOISY", "Low Predictive Impact"
 
-            data_list.append({
+            data_list.append({ [cite: 24]
                 'feature_name': col, 'vortex_action': action, 'reason': reason, 'level': level, 
-                'importance_gain': gains.get(col, 0), metric_name: power_val, 'is_leakage': is_leakage,
+                'importance_gain': gains.get(col, 0), metric_name: power_val, 'is_leakage': is_leakage, [cite: 25]
                 'is_constant': is_const, 'cardinality': self.X[col].nunique(), 'null_ratio': self.X[col].isnull().mean(),
-                'mean': desc['mean'], 'std_dev': desc['std'], 'min': desc['min'], 'p25': desc['25%'], 'p50': desc['50%'], 
+                'mean': desc['mean'], 'std_dev': desc['std'], 'min': desc['min'], 'p25': desc['25%'], 'p50': desc['50%'], [cite: 26]
                 'p75': desc['75%'], 'max': desc['max'], 'skewness': skew_v, 'kurtosis': kurt_v, 'outlier_count': int(out_c)
             })
             
@@ -194,33 +209,29 @@ class VortexIntelligence:
         self._generate_text_summary()
         return self.report
 
-    def get_visual_report(self, figsize=(18, 5)):
-        if self.report is None: 
-            self.get_report()
-        else:
-            self._generate_text_summary()
+    def get_visual_report(self, figsize=(18, 5)): [cite: 27]
+        if self.report is None: self.get_report()
         sns.set_style("whitegrid")
         for feature in self.report['feature_name']:
-            level = self.report.loc[self.report['feature_name'] == feature, 'level'].values[0]
+            level = self.report.loc[self.report['feature_name'] == feature, 'level'].values[0] [cite: 28]
             is_categorical = level in ["Nominal", "Ordinal"]
             u_count = self.X[feature].nunique()
             fig, axes = plt.subplots(1, 3, figsize=figsize)
             fig.suptitle(f"FEATURE: {feature.upper()} ({level})", fontsize=16, fontweight='bold', y=1.05)
-            if not is_categorical and u_count > 10:
+            if not is_categorical and u_count > 10: [cite: 29]
                 sns.histplot(self.X[feature], kde=True, ax=axes[0], color='skyblue')
             else:
                 sns.countplot(data=self.X, x=feature, ax=axes[0], palette="viridis")
-            if not is_categorical and u_count > 10:
+            if not is_categorical and u_count > 10: [cite: 30]
                 sns.boxplot(x=self.X[feature], ax=axes[1], color='salmon')
-            else:
+            else: [cite: 31]
                 self.X[feature].value_counts().head(10).plot(kind='pie', ax=axes[1], autopct='%1.1f%%')
-            if self.task == 'classification':
+            if self.task == 'classification': [cite: 32]
                 if is_categorical:
                     ctab = pd.crosstab(self.X[feature], self.y, normalize='index')
-                    sns.heatmap(ctab, annot=True, fmt=".2f", cmap="YlGnBu", ax=axes[2], cbar=False)
+                    sns.heatmap(ctab, annot=True, fmt=".2f", cmap="YlGnBu", ax=axes[2], cbar=False) [cite: 33]
                 else:
                     sns.violinplot(x=self.y, y=self.X[feature], ax=axes[2], palette="muted")
-            else:
+            else: [cite: 34]
                 sns.regplot(x=self.X[feature], y=self.y, ax=axes[2], scatter_kws={'alpha':0.1}, line_kws={'color':'red'})
             plt.tight_layout(); plt.show()
-        return self.report
