@@ -131,7 +131,7 @@ class VortexIntelligence:
             else:
                 skew_val = "Categorical"
                 kurt_val = "Categorical"
-                out_count = "Categorical"
+                out_count = -1
 
             auc = 0.5
             if self.task == 'classification':
