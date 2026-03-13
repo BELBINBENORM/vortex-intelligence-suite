@@ -84,7 +84,7 @@ class VortexIntelligence:
             print(f"🛡️ {b('Predictive'):<{pad}} : {auc_color}{b(f'Top Feature [{top_f}] has AUC-ROC of {auc_val:.4f}')}")
 
         out_msg = f"Detected in {outlier_cols} columns" if outlier_cols > 0 else "No extreme outliers"
-        print(f"🚩 {b('Outliers'):<{pad}} : {(self.RED if outlier_cols > 0 else self.GREEN)}{b(out_msg)}")
+        print(f"🚩 {b('Outliers'):<{pad}} : {(self.RED if outlier_cols > 0 else self.GREEN)}{b(out_msg)} {b(f'(Limit: {self.outlier_iqr_multiplier}xIQR)')}")
         
         skew_msg = f"{skew_count} columns skewed" if skew_count > 0 else "Symmetric"
         print(f"📐 {b('Skewness'):<{pad}} : {(self.RED if skew_count > 0 else self.GREEN)}{b(skew_msg)} {b(f'(Thr: ±{self.skew_threshold})')}")
