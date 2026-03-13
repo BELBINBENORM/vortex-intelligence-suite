@@ -93,12 +93,24 @@ class VortexIntelligence:
 
     def get_report(self):
         X_tmp = self.X.copy()
-        for c in X_tmp.select_dtypes(exclude=[np.number]).columns: 
-            X_tmp[c] = X_tmp[c].astype('category') [cite: 13]
         
+        # Track categories for external use
+        self.cat_features = [] # List of names
+        self.cat_idx = []      # List of indices
+
+        for i, col in enumerate(self.X.columns):
+            level = self._determine_data_level(col) [cite: 14]
+            # If it's not a continuous number (Interval/Ratio), it's a category 
+            if level in ["Nominal", "Ordinal"]: [cite: 2, 3]
+                self.cat_features.append(col)
+                self.cat_idx.append(i)
+                # Cast to category for internal LGBM importance calculation [cite: 13]
+                X_tmp[col] = X_tmp[col].astype('category') [cite: 13]
+        
+        # --- Internal Importance Calculation ---
         model = LGBMClassifier(n_estimators=100, importance_type='gain', verbosity=-1) if self.task == 'classification' else \
-                LGBMRegressor(n_estimators=100, importance_type='gain', verbosity=-1)
-        model.fit(X_tmp, self.y)
+                LGBMRegressor(n_estimators=100, importance_type='gain', verbosity=-1) [cite: 13]
+        model.fit(X_tmp, self.y) [cite: 13]
         gains = dict(zip(self.X.columns, model.feature_importances_)) [cite: 13]
 
         data_list = []
