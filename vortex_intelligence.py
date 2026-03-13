@@ -129,9 +129,9 @@ class VortexIntelligence:
                 out_count = ((self.X[col] < (Q1 - self.outlier_iqr_multiplier * (Q3-Q1))) |
                              (self.X[col] > (Q3 + self.outlier_iqr_multiplier * (Q3-Q1)))).sum()
             else:
-                skew_val = "Nominal"
-                kurt_val = "Nominal"
-                out_count = 0
+                skew_val = "Categorical"
+                kurt_val = "Categorical"
+                out_count = "Categorical"
 
             auc = 0.5
             if self.task == 'classification':
