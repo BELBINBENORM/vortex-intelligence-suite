@@ -9,7 +9,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class VortexIntelligence:
-    # UI Constants [cite: 1]
+    # UI Constants 
     GREEN, RED, YELLOW, CYAN = "\033[92m", "\033[91m", "\033[93m", "\033[96m"
     BOLD, RESET = "\033[1m", "\033[0m"
 
@@ -19,18 +19,18 @@ class VortexIntelligence:
                  redundancy_threshold=0.90, cardinality_threshold=100,
                  leakage_threshold=0.95, feature_names=None):
         
-        # Hard-cast to DataFrame for consistency [cite: 2]
+        # Hard-cast to DataFrame for consistency 
         if isinstance(X, np.ndarray):
             f_names = feature_names or [f"feat_{i}" for i in range(X.shape[1])]
             self.X = pd.DataFrame(X, columns=f_names).reset_index(drop=True)
         else:
-            self.X = X.copy().reset_index(drop=True) [cite: 3]
+            self.X = X.copy().reset_index(drop=True) 
             
         self.y = pd.Series(y).reset_index(drop=True)
         self.task = task.lower()
         self.report = None
         
-        # Threshold Parameters [cite: 4]
+        # Threshold Parameters 
         self.imbalance_threshold = imbalance_threshold
         self.skew_threshold = skew_threshold
         self.kurtosis_threshold = kurtosis_threshold
@@ -40,7 +40,7 @@ class VortexIntelligence:
         self.leakage_threshold = leakage_threshold
         self.cat_features = []
 
-    def _determine_data_level(self, col): [cite: 5]
+    def _determine_data_level(self, col): 
         unique_c = self.X[col].nunique()
         is_num = np.issubdtype(self.X[col].dtype, np.number)
         if not is_num or unique_c <= 5: return "Nominal"
@@ -50,10 +50,10 @@ class VortexIntelligence:
     def _generate_text_summary(self):
         if self.report is None: return
         
-        num_rep = self.report[self.report['level'].isin(['Interval', 'Ratio'])] [cite: 6]
+        num_rep = self.report[self.report['level'].isin(['Interval', 'Ratio'])] 
         cat_rep = self.report[self.report['level'].isin(['Nominal', 'Ordinal'])]
         
-        # 1. Calculation Logic for Failure Counts [cite: 7, 8]
+        # 1. Calculation Logic for Failure Counts 
         redundant_count = self.report[self.report['vortex_action'].str.contains("Redundant")].shape[0]
         const_count = self.report[self.report['is_constant'] == True].shape[0]
         card_stress = self.report[(self.report['level'].isin(['Nominal', 'Ordinal'])) & (self.report['cardinality'] > self.cardinality_threshold)].shape[0]
@@ -68,7 +68,7 @@ class VortexIntelligence:
         pad = 25
         print(f"\n{b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
 
-        # 1-3: Scale & Health [cite: 9]
+        # 1-3: Scale & Health 
         scale_txt = "Robust Scale" if len(self.X) > 10000 else "Limited Scale" if len(self.X) > 100 else "Micro Scale"
         print(f"📋 {b('1. Dataset Scale'):<{pad}} : {self.CYAN}{b(f'{scale_txt} ({len(self.X):,} Rows x {self.X.shape[1]} Features)')}")
         comp_txt = "Mixed Feature Types" if num_rep.shape[0] > 0 and cat_rep.shape[0] > 0 else "Uniform Type"
@@ -78,13 +78,13 @@ class VortexIntelligence:
         if null_sum > 0.5: null_c, null_txt = (self.RED, "Critical (High volume of missing data)")
         print(f"✨ {b('3. Null Values'):<{pad}} : {null_c}{b(null_txt)}")
 
-        # 4: Balance [cite: 10]
+        # 4: Balance 
         if self.task == 'classification':
             ratio = self.y.value_counts().max() / self.y.value_counts().min()
             bal_c, bal_txt = (self.GREEN, f"Balanced/Moderate (Ratio {ratio:.2f}:1)") if ratio <= self.imbalance_threshold else (self.RED, f"Severely Skewed (Ratio {ratio:.2f}:1)")
             print(f"⚖️ {b('4. Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
 
-        # 5: Redundancy [cite: 11]
+        # 5: Redundancy 
         red_c, red_txt = (self.GREEN, f"Clean (Correlations < {self.redundancy_threshold:.2f})") if redundant_count == 0 else (self.YELLOW, f"{redundant_count} Twins Detected (Correlations > {self.redundancy_threshold:.2f})")
         if redundant_count > (len(self.X.columns) // 2): red_c, red_txt = (self.RED, "Critical Redundancy (Multiple identical twins)")
         print(f"🖇️ {b('5. Redundancy'):<{pad}} : {red_c}{b(red_txt)}")
@@ -149,9 +149,9 @@ class VortexIntelligence:
         X_tmp = self.X.copy()
         self.cat_features = []
         corr_matrix = self.X.select_dtypes(include=[np.number]).corr().abs()
-        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) [cite: 14]
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) 
         
-        for col in self.X.columns: [cite: 15]
+        for col in self.X.columns: 
             if self._determine_data_level(col) in ["Nominal", "Ordinal"]:
                 self.cat_features.append(col)
                 X_tmp[col] = X_tmp[col].astype('category')
@@ -160,48 +160,48 @@ class VortexIntelligence:
         model.fit(X_tmp, self.y)
         gains = dict(zip(self.X.columns, model.feature_importances_))
         
-        data_list = [] [cite: 16]
+        data_list = [] 
         for col in self.X.columns:
             level = self._determine_data_level(col)
             is_num = np.issubdtype(self.X[col].dtype, np.number)
             is_cat = level in ["Nominal", "Ordinal"]
             is_const = self.X[col].nunique() <= 1
             
-            if self.task == 'classification': [cite: 17]
+            if self.task == 'classification': 
                 try: 
                     score = roc_auc_score(self.y, pd.to_numeric(self.X[col], errors='coerce').fillna(0))
                     power_val = max(score, 1 - score)
-                except: power_val = 0.5 [cite: 18]
+                except: power_val = 0.5 
                 metric_name = 'auc_roc'
             else:
                 power_val = self.X[col].corr(self.y, method='spearman')
                 power_val = abs(power_val) if not np.isnan(power_val) else 0.0
                 metric_name = 'spearman_corr'
 
-            if is_num: [cite: 19]
+            if is_num: 
                 desc = self.X[col].describe()
                 skew_v, kurt_v = (self.X[col].skew(), self.X[col].kurtosis()) if not is_cat else ("Categorical", "Categorical")
                 iqr = desc['75%'] - desc['25%']
-                out_c = ((self.X[col] < (desc['25%'] - self.outlier_iqr_multiplier*iqr)) | (self.X[col] > (desc['75%'] + self.outlier_iqr_multiplier*iqr))).sum() if not is_cat else -1 [cite: 20]
+                out_c = ((self.X[col] < (desc['25%'] - self.outlier_iqr_multiplier*iqr)) | (self.X[col] > (desc['75%'] + self.outlier_iqr_multiplier*iqr))).sum() if not is_cat else -1 
             else:
                 desc = {'mean':0,'std':0,'min':0,'25%':0,'50%':0,'75%':0,'max':0}
-                skew_v = kurt_v = "Categorical"; out_c = -1 [cite: 21]
+                skew_v = kurt_v = "Categorical"; out_c = -1 
 
             twins = upper.index[upper[col] > self.redundancy_threshold].tolist()
             is_leakage = power_val > self.leakage_threshold
             
             reason = "Healthy"
-            if is_leakage: action, reason = "💀 DANGER (DROP)", "Data Leakage (Too high correlation)" [cite: 22]
+            if is_leakage: action, reason = "💀 DANGER (DROP)", "Data Leakage (Too high correlation)" 
             elif is_const: action, reason = "💀 DANGER (DROP)", "Constant Column (No variance)"
             elif twins: action, reason = "💀 DANGER (DROP)", f"Redundant (Twin of {', '.join(twins)})"
-            elif (gains.get(col, 0) > 100 or power_val > 0.65): action, reason = "🚀 STRONG SIGNAL", "High Predictive Power" [cite: 23]
+            elif (gains.get(col, 0) > 100 or power_val > 0.65): action, reason = "🚀 STRONG SIGNAL", "High Predictive Power" 
             else: action, reason = "⚠️ WEAK/NOISY", "Low Predictive Impact"
 
-            data_list.append({ [cite: 24]
+            data_list.append({ 
                 'feature_name': col, 'vortex_action': action, 'reason': reason, 'level': level, 
-                'importance_gain': gains.get(col, 0), metric_name: power_val, 'is_leakage': is_leakage, [cite: 25]
+                'importance_gain': gains.get(col, 0), metric_name: power_val, 'is_leakage': is_leakage, 
                 'is_constant': is_const, 'cardinality': self.X[col].nunique(), 'null_ratio': self.X[col].isnull().mean(),
-                'mean': desc['mean'], 'std_dev': desc['std'], 'min': desc['min'], 'p25': desc['25%'], 'p50': desc['50%'], [cite: 26]
+                'mean': desc['mean'], 'std_dev': desc['std'], 'min': desc['min'], 'p25': desc['25%'], 'p50': desc['50%'], 
                 'p75': desc['75%'], 'max': desc['max'], 'skewness': skew_v, 'kurtosis': kurt_v, 'outlier_count': int(out_c)
             })
             
@@ -209,29 +209,29 @@ class VortexIntelligence:
         self._generate_text_summary()
         return self.report
 
-    def get_visual_report(self, figsize=(18, 5)): [cite: 27]
+    def get_visual_report(self, figsize=(18, 5)): 
         if self.report is None: self.get_report()
         sns.set_style("whitegrid")
         for feature in self.report['feature_name']:
-            level = self.report.loc[self.report['feature_name'] == feature, 'level'].values[0] [cite: 28]
+            level = self.report.loc[self.report['feature_name'] == feature, 'level'].values[0] 
             is_categorical = level in ["Nominal", "Ordinal"]
             u_count = self.X[feature].nunique()
             fig, axes = plt.subplots(1, 3, figsize=figsize)
             fig.suptitle(f"FEATURE: {feature.upper()} ({level})", fontsize=16, fontweight='bold', y=1.05)
-            if not is_categorical and u_count > 10: [cite: 29]
+            if not is_categorical and u_count > 10: 
                 sns.histplot(self.X[feature], kde=True, ax=axes[0], color='skyblue')
             else:
                 sns.countplot(data=self.X, x=feature, ax=axes[0], palette="viridis")
-            if not is_categorical and u_count > 10: [cite: 30]
+            if not is_categorical and u_count > 10: 
                 sns.boxplot(x=self.X[feature], ax=axes[1], color='salmon')
-            else: [cite: 31]
+            else: 
                 self.X[feature].value_counts().head(10).plot(kind='pie', ax=axes[1], autopct='%1.1f%%')
-            if self.task == 'classification': [cite: 32]
+            if self.task == 'classification': 
                 if is_categorical:
                     ctab = pd.crosstab(self.X[feature], self.y, normalize='index')
-                    sns.heatmap(ctab, annot=True, fmt=".2f", cmap="YlGnBu", ax=axes[2], cbar=False) [cite: 33]
+                    sns.heatmap(ctab, annot=True, fmt=".2f", cmap="YlGnBu", ax=axes[2], cbar=False) 
                 else:
                     sns.violinplot(x=self.y, y=self.X[feature], ax=axes[2], palette="muted")
-            else: [cite: 34]
+            else: 
                 sns.regplot(x=self.X[feature], y=self.y, ax=axes[2], scatter_kws={'alpha':0.1}, line_kws={'color':'red'})
             plt.tight_layout(); plt.show()
