@@ -148,6 +148,7 @@ class VortexIntelligence:
     def get_report(self):
         X_tmp = self.X.copy()
         self.cat_features = []
+        # Calculate correlation only for numeric columns
         corr_matrix = self.X.select_dtypes(include=[np.number]).corr().abs()
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) 
         
@@ -187,7 +188,8 @@ class VortexIntelligence:
                 desc = {'mean':0,'std':0,'min':0,'25%':0,'50%':0,'75%':0,'max':0}
                 skew_v = kurt_v = "Categorical"; out_c = -1 
 
-            twins = upper.index[upper[col] > self.redundancy_threshold].tolist()
+            # FIX APPLIED HERE:
+            twins = upper.index[upper[col] > self.redundancy_threshold].tolist() if col in upper.columns else []
             is_leakage = power_val > self.leakage_threshold
             
             reason = "Healthy"
