@@ -90,7 +90,7 @@ class VortexIntelligence:
             else:
                 bal_c, bal_txt = self.RED, f"Severely Skewed (Ratio {ratio:.2f}:1)"
                 
-            print(f"⚖️ {b('4. Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
+            print(f"⚖️ {b('Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
 
        # Redundancy
         
