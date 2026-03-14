@@ -53,15 +53,18 @@ class VortexIntelligence:
         num_rep = self.report[self.report['level'].isin(['Interval', 'Ratio'])] 
         cat_rep = self.report[self.report['level'].isin(['Nominal', 'Ordinal'])]
         
-        # 1. Calculation Logic for Failure Counts 
+        # Calculation Logic for Failure Counts 
         redundant_count = self.report[self.report['vortex_action'].str.contains("Redundant")].shape[0]
         const_count = self.report[self.report['is_constant'] == True].shape[0]
-        card_stress = self.report[(self.report['level'].isin(['Nominal', 'Ordinal'])) & (self.report['cardinality'] > self.cardinality_threshold)].shape[0]
+        # Respecting cardinality_threshold here
+        card_stress = self.report[(self.report['level'].isin(['Nominal', 'Ordinal'])) & 
+                                  (self.report['cardinality'] > self.cardinality_threshold)].shape[0]
         leak_count = self.report[self.report['is_leakage'] == True].shape[0]
-        outlier_cols = num_rep[num_rep['outlier_count'] > 0].shape[0]
         out_total = num_rep['outlier_count'].sum() if not num_rep.empty else 0
-        skew_count = num_rep[(num_rep['skewness'] != "Categorical") & (pd.to_numeric(num_rep['skewness']).abs() > self.skew_threshold)].shape[0]
-        kurt_count = num_rep[(num_rep['kurtosis'] != "Categorical") & (pd.to_numeric(num_rep['kurtosis']) > self.kurtosis_threshold)].shape[0]
+        skew_count = num_rep[(num_rep['skewness'] != "Categorical") & 
+                             (pd.to_numeric(num_rep['skewness']).abs() > self.skew_threshold)].shape[0]
+        kurt_count = num_rep[(num_rep['kurtosis'] != "Categorical") & 
+                             (pd.to_numeric(num_rep['kurtosis']) > self.kurtosis_threshold)].shape[0]
         strong_signals = self.report[self.report['vortex_action'] == '🚀 STRONG SIGNAL'].shape[0]
 
         def b(text): return f"{self.BOLD}{text}{self.RESET}"
@@ -92,21 +95,22 @@ class VortexIntelligence:
                 
             print(f"⚖️ {b('4. Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
 
-        # Redundancy 
+       # Redundancy
+        
         red_c, red_txt = (self.GREEN, f"Clean (Correlations < {self.redundancy_threshold:.2f})") if redundant_count == 0 else (self.YELLOW, f"{redundant_count} Twins Detected (Correlations > {self.redundancy_threshold:.2f})")
-        if redundant_count > (len(self.X.columns) // 2): red_c, red_txt = (self.RED, "Critical Redundancy (Multiple identical twins)")
+        if redundant_count > (len(self.X.columns) // 2): red_c, red_txt = (self.RED, "Critical Redundancy (High feature overlap)")
         print(f"🖇️ {b('Redundancy'):<{pad}} : {red_c}{b(red_txt)}")
 
         # Stability
-        stab_c, stab_txt = (self.GREEN, "Healthy Variance (No constant columns)") if const_count == 0 else (self.YELLOW, f"{const_count} Low Stability (Low-variance columns found)")
-        if const_count > 0: stab_c, stab_txt = (self.RED, f"{const_count} Dead Columns (Constant/Zero-variance)")
+        
+        stab_c, stab_txt = (self.GREEN, "Healthy Variance (No constant columns)") if const_count == 0 else (self.RED, f"{const_count} Dead Columns (Constant/Zero-variance)")
         print(f"🧊 {b('Stability'):<{pad}} : {stab_c}{b(stab_txt)}")
 
         # Cardinality
-        card_c, card_txt = (self.GREEN, "Optimized (Well-grouped categories)") if card_stress == 0 else (self.YELLOW, f"{card_stress} High Complexity (Potential cardinality stress)")
-        if card_stress > (len(self.X.columns) // 2): card_c, card_txt = (self.RED, "Critical (Category unique counts near row count)")
+        card_c, card_txt = (self.GREEN, f"Optimized (Unique counts < {self.cardinality_threshold})") if card_stress == 0 else (self.YELLOW, f"{card_stress} High Complexity (Unique counts > {self.cardinality_threshold})")
+        if card_stress > (len(self.X.columns) // 2): card_c, card_txt = (self.RED, "Critical Cardinality (Risk of high-dimensional sparse data)")
         print(f"🗂️ {b('Cardinality'):<{pad}} : {card_c}{b(card_txt)}")
-
+        
         # Outliers
         out_c, out_txt = (self.GREEN, f"None (< {self.outlier_iqr_multiplier}xIQR)") if out_total == 0 else (self.YELLOW, f"{int(out_total)} detected (> {self.outlier_iqr_multiplier}xIQR)")
         if out_total > (len(self.X)*0.1): out_c, out_txt = (self.RED, "Extreme (Severe outlier distortion detected)")
