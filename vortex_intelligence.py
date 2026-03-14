@@ -53,10 +53,8 @@ class VortexIntelligence:
         num_rep = self.report[self.report['level'].isin(['Interval', 'Ratio'])] 
         cat_rep = self.report[self.report['level'].isin(['Nominal', 'Ordinal'])]
         
-        # Calculation Logic for Failure Counts 
-        redundant_count = self.report[self.report['vortex_action'].str.contains("Redundant")].shape[0]
+        redundant_count = self.report[self.report['reason'].str.contains("Redundant", na=False)].shape[0]
         const_count = self.report[self.report['is_constant'] == True].shape[0]
-        # Respecting cardinality_threshold here
         card_stress = self.report[(self.report['level'].isin(['Nominal', 'Ordinal'])) & 
                                   (self.report['cardinality'] > self.cardinality_threshold)].shape[0]
         leak_count = self.report[self.report['is_leakage'] == True].shape[0]
@@ -70,7 +68,6 @@ class VortexIntelligence:
         def b(text): return f"{self.BOLD}{text}{self.RESET}"
         pad = 25
         print(f"\n{b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
-
         # Scale & Health 
         scale_txt = "Robust Scale" if len(self.X) > 10000 else "Limited Scale" if len(self.X) > 100 else "Micro Scale"
         print(f"📋 {b('Dataset Scale'):<{pad}} : {self.CYAN}{b(f'{scale_txt} ({len(self.X):,} Rows x {self.X.shape[1]} Features)')}")
@@ -160,7 +157,6 @@ class VortexIntelligence:
     def get_report(self):
         X_tmp = self.X.copy()
         self.cat_features = []
-        # Calculate correlation only for numeric columns
         corr_matrix = self.X.select_dtypes(include=[np.number]).corr().abs()
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) 
         
@@ -180,6 +176,7 @@ class VortexIntelligence:
             is_cat = level in ["Nominal", "Ordinal"]
             is_const = self.X[col].nunique() <= 1
             
+            # Metric calculation...
             if self.task == 'classification': 
                 try: 
                     score = roc_auc_score(self.y, pd.to_numeric(self.X[col], errors='coerce').fillna(0))
@@ -191,6 +188,7 @@ class VortexIntelligence:
                 power_val = abs(power_val) if not np.isnan(power_val) else 0.0
                 metric_name = 'spearman_corr'
 
+            # Describe and Outliers...
             if is_num: 
                 desc = self.X[col].describe()
                 skew_v, kurt_v = (self.X[col].skew(), self.X[col].kurtosis()) if not is_cat else ("Categorical", "Categorical")
@@ -200,14 +198,15 @@ class VortexIntelligence:
                 desc = {'mean':0,'std':0,'min':0,'25%':0,'50%':0,'75%':0,'max':0}
                 skew_v = kurt_v = "Categorical"; out_c = -1 
 
-            # FIX APPLIED HERE:
+            # --- FIXED REDUNDANCY LOGIC ---
             twins = upper.index[upper[col] > self.redundancy_threshold].tolist() if col in upper.columns else []
             is_leakage = power_val > self.leakage_threshold
             
             reason = "Healthy"
             if is_leakage: action, reason = "💀 DANGER (DROP)", "Data Leakage (Too high correlation)" 
             elif is_const: action, reason = "💀 DANGER (DROP)", "Constant Column (No variance)"
-            elif twins: action, reason = "💀 DANGER (DROP)", f"Redundant (Twin of {', '.join(twins)})"
+            elif twins: 
+                action, reason = "💀 DANGER (DROP)", f"Redundant (Twin of {', '.join(twins)})"
             elif (gains.get(col, 0) > 100 or power_val > 0.65): action, reason = "🚀 STRONG SIGNAL", "High Predictive Power" 
             else: action, reason = "⚠️ WEAK/NOISY", "Low Predictive Impact"
 
