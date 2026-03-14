@@ -68,92 +68,64 @@ class VortexIntelligence:
         def b(text): return f"{self.BOLD}{text}{self.RESET}"
         pad = 25
         print(f"\n{b('--- VORTEX INTELLIGENCE SUMMARY ---')}\n")
+        
         # Scale & Health 
         scale_txt = "Robust Scale" if len(self.X) > 10000 else "Limited Scale" if len(self.X) > 100 else "Micro Scale"
         print(f"📋 {b('Dataset Scale'):<{pad}} : {self.CYAN}{b(f'{scale_txt} ({len(self.X):,} Rows x {self.X.shape[1]} Features)')}")
         comp_txt = "Mixed Feature Types" if num_rep.shape[0] > 0 and cat_rep.shape[0] > 0 else "Uniform Type"
         print(f"📊 {b('Composition'):<{pad}} : {self.CYAN}{b(f'{comp_txt} ({num_rep.shape[0]} Numerical, {cat_rep.shape[0]} Categorical)')}")
+        
         null_sum = self.report['null_ratio'].sum()
         null_c, null_txt = (self.GREEN, "Pristine (No missing data detected)") if null_sum == 0 else (self.YELLOW, "Warning (Sparse missing data detected)")
         if null_sum > 0.5: null_c, null_txt = (self.RED, "Critical (High volume of missing data)")
         print(f"✨ {b('Null Values'):<{pad}} : {null_c}{b(null_txt)}")
 
-        # Balance 
+        # Balance (Only for Classification)
         if self.task == 'classification':
             counts = self.y.value_counts()
             ratio = counts.max() / counts.min()
-            
-            if ratio <= 1.5:
-                bal_c, bal_txt = self.GREEN, f"Balanced (Ratio {ratio:.2f}:1)"
-            elif ratio <= self.imbalance_threshold:
-                bal_c, bal_txt = self.YELLOW, f"Moderate (Ratio {ratio:.2f}:1)"
-            else:
-                bal_c, bal_txt = self.RED, f"Severely Skewed (Ratio {ratio:.2f}:1)"
-                
-            print(f"⚖️ {b('Balance'):<{pad}} : {bal_c}{b(bal_txt)}")
+            bal_c = self.GREEN if ratio <= 1.5 else self.YELLOW if ratio <= self.imbalance_threshold else self.RED
+            print(f"⚖️ {b('Balance'):<{pad}} : {bal_c}{b(f'Ratio {ratio:.2f}:1')}")
 
-       # Redundancy
-        
-        red_c, red_txt = (self.GREEN, f"Clean (Correlations < {self.redundancy_threshold:.2f})") if redundant_count == 0 else (self.YELLOW, f"{redundant_count} Twins Detected (Correlations > {self.redundancy_threshold:.2f})")
-        if redundant_count > (len(self.X.columns) // 2): red_c, red_txt = (self.RED, "Critical Redundancy (High feature overlap)")
-        print(f"🖇️ {b('Redundancy'):<{pad}} : {red_c}{b(red_txt)}")
+        # Redundancy
+        red_c = self.GREEN if redundant_count == 0 else self.YELLOW if redundant_count <= (len(self.X.columns) // 2) else self.RED
+        print(f"🖇️ {b('Redundancy'):<{pad}} : {red_c}{b(f'Clean' if redundant_count == 0 else f'{redundant_count} Twins Detected')}")
 
-        # Stability
+        # Stability, Cardinality, Outliers
+        print(f"🧊 {b('Stability'):<{pad}} : {self.GREEN if const_count == 0 else self.RED}{b('Healthy' if const_count == 0 else f'{const_count} Dead Columns')}")
+        print(f"🗂️ {b('Cardinality'):<{pad}} : {self.GREEN if card_stress == 0 else self.YELLOW}{b('Optimized' if card_stress == 0 else f'{card_stress} High Complexity')}")
+        print(f"🚩 {b('Outliers'):<{pad}} : {self.GREEN if out_total == 0 else self.YELLOW}{b('None' if out_total == 0 else f'{int(out_total)} detected')}")
         
-        stab_c, stab_txt = (self.GREEN, "Healthy Variance (No constant columns)") if const_count == 0 else (self.RED, f"{const_count} Dead Columns (Constant/Zero-variance)")
-        print(f"🧊 {b('Stability'):<{pad}} : {stab_c}{b(stab_txt)}")
+        # Distribution
+        print(f"📐 {b('Skewness'):<{pad}} : {self.GREEN if skew_count == 0 else self.YELLOW}{b('Symmetric' if skew_count == 0 else f'{skew_count} Distorted')}")
+        print(f"🏔️ {b('Kurtosis'):<{pad}} : {self.GREEN if kurt_count == 0 else self.YELLOW}{b('Normal Peaks' if kurt_count == 0 else f'{kurt_count} Sharp Peaks')}")
 
-        # Cardinality
-        card_c, card_txt = (self.GREEN, f"Optimized (Unique counts < {self.cardinality_threshold})") if card_stress == 0 else (self.YELLOW, f"{card_stress} High Complexity (Unique counts > {self.cardinality_threshold})")
-        if card_stress > (len(self.X.columns) // 2): card_c, card_txt = (self.RED, "Critical Cardinality (Risk of high-dimensional sparse data)")
-        print(f"🗂️ {b('Cardinality'):<{pad}} : {card_c}{b(card_txt)}")
-        
-        # Outliers
-        out_c, out_txt = (self.GREEN, f"None (< {self.outlier_iqr_multiplier}xIQR)") if out_total == 0 else (self.YELLOW, f"{int(out_total)} detected (> {self.outlier_iqr_multiplier}xIQR)")
-        if out_total > (len(self.X)*0.1): out_c, out_txt = (self.RED, "Extreme (Severe outlier distortion detected)")
-        print(f"🚩 {b('Outliers'):<{pad}} : {out_c}{b(out_txt)}")
-        
-        # Skewness
-        skew_c, skew_txt = (self.GREEN, f"Symmetric Distribution [-{self.skew_threshold}, {self.skew_threshold}]") if skew_count == 0 else (self.YELLOW, f"{skew_count} Columns Distorted (Outside [-{self.skew_threshold}, {self.skew_threshold}])")
-        if skew_count == len(num_rep) and len(num_rep) > 0: skew_c, skew_txt = (self.RED, "Critical (All numeric columns distorted)")
-        print(f"📐 {b('Skewness'):<{pad}} : {skew_c}{b(skew_txt)}")
-        
-        # Kurtosis
-        kurt_c, kurt_txt = (self.GREEN, f"Normal Peaks (< {self.kurtosis_threshold})") if kurt_count == 0 else (self.YELLOW, f"{kurt_count} Columns Sharp Peaks (> {self.kurtosis_threshold})")
-        if kurt_count > 0 and num_rep['kurtosis'].astype(float).max() > 50: kurt_c, kurt_txt = (self.RED, "Critical (Extreme heavy-tailed distribution)")
-        print(f"🏔️ {b('Kurtosis'):<{pad}} : {kurt_c}{b(kurt_txt)}")
+        # --- DYNAMIC PREDICTIVE METRIC LOGIC ---
+        if self.task == 'classification':
+            p_metric, m_label, m_threshold = 'auc_roc', 'AUC', 0.65
+        else:
+            p_metric, m_label, m_threshold = 'spearman_corr', 'Spearman', 0.45
 
-        # Ranges 
-        c_min = cat_rep['min'].astype(float).min() if not cat_rep.empty else 0.0
-        c_max = cat_rep['max'].astype(float).max() if not cat_rep.empty else 0.0
-        n_min = num_rep['min'].astype(float).min() if not num_rep.empty else 0.0
-        n_max = num_rep['max'].astype(float).max() if not num_rep.empty else 0.0
-        
-        cr_c, cr_txt = (self.GREEN, f"Valid (Min: {c_min:.2f} | Max: {c_max:.2f})") if c_min >= 0 else (self.RED, f"Critical Error (Negative values in categories)")
-        print(f"📉 {b('Categorical Range'):<{pad}} : {cr_c}{b(cr_txt)}")
-        print(f"📈 {b('Numerical Range'):<{pad}} : {self.CYAN}{b(f'Standardized (Min: {n_min:.2f} | Max: {n_max:.2f})')}")
-
-        # Power & Verdict 
-        p_metric = 'auc_roc' if self.task == 'classification' else 'spearman_corr'
         top_f = self.report.iloc[0]['feature_name'] if not self.report.empty else "N/A"
         top_v = self.report.iloc[0][p_metric] if not self.report.empty else 0.0
-        pred_c = self.GREEN if top_v > 0.65 else (self.YELLOW if top_v > 0.55 else self.RED)
-        pred_txt = f"Strong Signal [{top_f}] AUC: {top_v:.4f}" if top_v > 0.65 else (f"Moderate Signal AUC: {top_v:.4f}" if top_v > 0.55 else "No Signal Found")
+        
+        pred_c = self.GREEN if top_v > m_threshold else (self.YELLOW if top_v > (m_threshold - 0.1) else self.RED)
+        pred_txt = f"Strong Signal [{top_f}] {m_label}: {top_v:.4f}" if top_v > m_threshold else (f"Moderate Signal {m_label}: {top_v:.4f}" if top_v > (m_threshold - 0.1) else f"No Signal Found ({m_label}: {top_v:.4f})")
+        
         print(f"🛡️ {b('Predictive'):<{pad}} : {pred_c}{b(pred_txt)}")
         
-        leak_c, leak_txt = (self.GREEN, f"Safe (No correlations > {self.leakage_threshold})") if leak_count == 0 else (self.YELLOW, f"Warning (Potential data leakage detected)")
-        if leak_count > 0 and top_v > 0.98: leak_c, leak_txt = (self.RED, "Danger (Direct target leakage detected)")
+        # Leakage Alert
+        leak_c, leak_txt = (self.GREEN, "Safe") if leak_count == 0 else (self.YELLOW, "Warning (Potential Leakage)")
+        if leak_count > 0 and top_v > 0.98: leak_c, leak_txt = (self.RED, "Danger (Direct Leakage)")
         print(f"🌊 {b('Leakage Alert'):<{pad}} : {leak_c}{b(leak_txt)}")
         
-        v_color = self.RED if (leak_count > 0 or const_count > 0 or c_min < 0 or strong_signals == 0) else self.GREEN
-        if strong_signals == 0:
-            v_msg = "0 Strong Signals. Data quality too low for training."
-        elif v_color == self.RED:
-            v_msg = f"{strong_signals} Strong Signals. Review 'Danger Zone' before training."
-        else:
-            v_msg = f"{strong_signals} Strong Signals. Ready for model training."
+        # Final Verdict
+        v_color = self.RED if (leak_count > 0 or const_count > 0 or strong_signals == 0) else self.GREEN
+        v_msg = f"{strong_signals} Strong Signals. Ready." if v_color == self.GREEN else f"Review {leak_count + const_count} blockers before training."
+        if strong_signals == 0: v_msg = "0 Strong Signals. Data quality too low."
+        
         print(f"🎯 {b('Final Verdict'):<{pad}} : {v_color}{b(v_msg)}\n")
-
+        
     def get_report(self):
         X_tmp = self.X.copy()
         self.cat_features = []
@@ -216,10 +188,10 @@ class VortexIntelligence:
                 'feature_name': col, 
                 'vortex_action': action, 
                 'reason': reason, 
-                'redundant_with': ", ".join(twins) if twins else "None", # Storing twins here
                 'level': level, 
                 'importance_gain': gains.get(col, 0), 
-                metric_name: power_val, 
+                metric_name: power_val,
+                'redundant_with': ", ".join(twins) if twins else "None",
                 'is_leakage': is_leakage, 
                 'is_constant': is_const, 
                 'cardinality': self.X[col].nunique(), 
