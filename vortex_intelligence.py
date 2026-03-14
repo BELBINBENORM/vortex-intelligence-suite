@@ -176,7 +176,6 @@ class VortexIntelligence:
             is_cat = level in ["Nominal", "Ordinal"]
             is_const = self.X[col].nunique() <= 1
             
-            # Metric calculation...
             if self.task == 'classification': 
                 try: 
                     score = roc_auc_score(self.y, pd.to_numeric(self.X[col], errors='coerce').fillna(0))
@@ -188,7 +187,6 @@ class VortexIntelligence:
                 power_val = abs(power_val) if not np.isnan(power_val) else 0.0
                 metric_name = 'spearman_corr'
 
-            # Describe and Outliers...
             if is_num: 
                 desc = self.X[col].describe()
                 skew_v, kurt_v = (self.X[col].skew(), self.X[col].kurtosis()) if not is_cat else ("Categorical", "Categorical")
@@ -198,11 +196,15 @@ class VortexIntelligence:
                 desc = {'mean':0,'std':0,'min':0,'25%':0,'50%':0,'75%':0,'max':0}
                 skew_v = kurt_v = "Categorical"; out_c = -1 
 
-            # --- FIXED REDUNDANCY LOGIC ---
+            # --- REDUNDANCY LOGIC WITH DATAFRAME STORAGE ---
+            # Check if this column is a twin of another column
             twins = upper.index[upper[col] > self.redundancy_threshold].tolist() if col in upper.columns else []
-            is_leakage = power_val > self.leakage_threshold
+            # Also check if this column is the one being dropped because it's a twin of something else
+            is_redundant = any(upper[col] > self.redundancy_threshold) if col in upper.columns else False
             
+            is_leakage = power_val > self.leakage_threshold
             reason = "Healthy"
+            
             if is_leakage: action, reason = "💀 DANGER (DROP)", "Data Leakage (Too high correlation)" 
             elif is_const: action, reason = "💀 DANGER (DROP)", "Constant Column (No variance)"
             elif twins: 
@@ -211,11 +213,20 @@ class VortexIntelligence:
             else: action, reason = "⚠️ WEAK/NOISY", "Low Predictive Impact"
 
             data_list.append({ 
-                'feature_name': col, 'vortex_action': action, 'reason': reason, 'level': level, 
-                'importance_gain': gains.get(col, 0), metric_name: power_val, 'is_leakage': is_leakage, 
-                'is_constant': is_const, 'cardinality': self.X[col].nunique(), 'null_ratio': self.X[col].isnull().mean(),
-                'mean': desc['mean'], 'std_dev': desc['std'], 'min': desc['min'], 'p25': desc['25%'], 'p50': desc['50%'], 
-                'p75': desc['75%'], 'max': desc['max'], 'skewness': skew_v, 'kurtosis': kurt_v, 'outlier_count': int(out_c)
+                'feature_name': col, 
+                'vortex_action': action, 
+                'reason': reason, 
+                'redundant_with': ", ".join(twins) if twins else "None", # Storing twins here
+                'level': level, 
+                'importance_gain': gains.get(col, 0), 
+                metric_name: power_val, 
+                'is_leakage': is_leakage, 
+                'is_constant': is_const, 
+                'cardinality': self.X[col].nunique(), 
+                'null_ratio': self.X[col].isnull().mean(),
+                'mean': desc['mean'], 'std_dev': desc['std'], 'min': desc['min'], 
+                'p25': desc['25%'], 'p50': desc['50%'], 'p75': desc['75%'], 'max': desc['max'], 
+                'skewness': skew_v, 'kurtosis': kurt_v, 'outlier_count': int(out_c)
             })
             
         self.report = pd.DataFrame(data_list).sort_values(metric_name, ascending=False).reset_index(drop=True)
