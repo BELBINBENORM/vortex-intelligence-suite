@@ -194,6 +194,7 @@ class VortexIntelligence:
         data_list = [] 
         for col in self.X.columns:
             level = self._determine_data_level(col)
+            dtype_val = str(self.X[col].dtype)
             is_num = pd.api.types.is_numeric_dtype(self.X[col])
             is_cat = level in ["Nominal", "Ordinal"]
             is_const = self.X[col].nunique() <= 1
@@ -238,7 +239,8 @@ class VortexIntelligence:
                 'feature_name': col, 
                 'vortex_action': action, 
                 'reason': reason, 
-                'level': level, 
+                'level': level,
+                'dtype': dtype_val,
                 'importance_gain': gains.get(col, 0), 
                 metric_name: power_val,
                 'redundant_with': ", ".join(twins) if twins else "None",
