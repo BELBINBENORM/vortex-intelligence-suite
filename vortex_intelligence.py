@@ -42,9 +42,18 @@ class VortexIntelligence:
 
     def _determine_data_level(self, col): 
         unique_c = self.X[col].nunique()
-        is_num = np.issubdtype(self.X[col].dtype, np.number)
-        if not is_num or unique_c <= 5: return "Nominal"
-        if is_num and np.array_equal(self.X[col], self.X[col].astype(int)) and unique_c <= 20: return "Ordinal"
+        is_cat_dtype = pd.api.types.is_categorical_dtype(self.X[col])
+        if is_cat_dtype: return "Nominal"
+
+        is_num = pd.api.types.is_numeric_dtype(self.X[col].dtype)
+        if not is_num or unique_c <= 5: 
+            return "Nominal"
+        try:
+            is_integer_val = np.array_equal(self.X[col], self.X[col].astype(int))
+            if is_num and is_integer_val and unique_c <= 20: 
+                return "Ordinal"
+        except (ValueError, TypeError):
+            pass
         return "Ratio" if (is_num and self.X[col].min() >= 0) else "Interval"
 
     def _generate_text_summary(self):
