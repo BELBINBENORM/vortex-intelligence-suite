@@ -177,7 +177,9 @@ class VortexIntelligence:
     def get_report(self):
         X_tmp = self.X.copy()
         self.cat_features = []
-        corr_matrix = self.X.select_dtypes(include=[np.number]).corr().abs()
+        
+        numeric_cols = self.X.select_dtypes(include=[np.number]).columns
+        corr_matrix = self.X[numeric_cols].corr().abs()
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)) 
         
         for col in self.X.columns: 
@@ -192,7 +194,7 @@ class VortexIntelligence:
         data_list = [] 
         for col in self.X.columns:
             level = self._determine_data_level(col)
-            is_num = np.issubdtype(self.X[col].dtype, np.number)
+            is_num = pd.api.types.is_numeric_dtype(self.X[col])
             is_cat = level in ["Nominal", "Ordinal"]
             is_const = self.X[col].nunique() <= 1
             
